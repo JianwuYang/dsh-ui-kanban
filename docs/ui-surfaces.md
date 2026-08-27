@@ -55,12 +55,13 @@ The client half is organized into small modules under `src/client/`:
 |--------|---------|
 | `styles.ts` | Single injected `<style>` tag. Design tokens at `:root, body` (`--kb-*`: radii, spacing, type scale ≥12px, motion 150–300ms, semantic colors mapped to `--dsw-alias-*`, status-category accents — note the harness defines `--dsw-alias-*` on `body`, so theme-mapped tokens must not live on `:root` alone). Shared component classes are unscoped `.kb-*` (used by both the app and the chat toolviews); `.kkb-app` keeps only app-layout rules; `.kkb-config-*` / `.kkb-header-*` style the remaining surfaces. |
 | `icons.tsx` | Inline SVG icon set (`Ic*`), no icon library — the client bundle only allows the `react` runtime dep. |
-| `modal.tsx` | In-app `Modal` (Esc closes only the topmost of nested modals via a module-level depth stack, focus trap + restore, body scroll lock, enter/exit animation), `ConfirmDialog`/`PromptDialog` + `DialogsProvider` — replace all native `alert`/`confirm`/`prompt`. |
+| `modal.tsx` | In-app `Modal` (Esc closes only the topmost of nested modals via a module-level depth stack, focus trap + restore, body scroll lock, enter/exit animation; `footer={null}` removes the bottom bar), `ConfirmDialog`/`PromptDialog`/`ChoiceDialog` + `DialogsProvider` — replace all native `alert`/`confirm`/`prompt`. |
 | `toast.tsx` | `ToastProvider` + `useToast()` — aria-live toasts with enter/exit animation. |
-| `primitives.tsx` | Shared widgets: `IconButton`, `Avatar` (initials), `StatusDot`, `SearchInput`, `SegToggle`, `EmptyState`, skeletons, `CopyButton`. |
-| `kanban-app.tsx` | App shell: providers, state, load/sync/move handlers, header (fullscreen one-row / panel three-row). |
+| `primitives.tsx` | Shared widgets: `IconButton`, `Avatar` (initials), `StatusDot`, `SearchInput`, `SegToggle`, `EmptyState`, skeletons, `CopyButton`, `formatDateTime` (browser-local timestamps). |
+| `kanban-app.tsx` | App shell: providers, state, load/sync handlers, panel header (two rows — brand/meta/close, labeled actions). |
 | `kanban-board.tsx` | The single board view: a status-grouped vertical list for narrow panels — collapsible sections (status dot + count + chevron), full-width cards, client-side search. No drag & drop and no status filter chips: moving an issue goes through click → detail → transition buttons (keyboard-friendly), and the grouping itself is the status overview. |
-| `kanban-modals.tsx` | Settings / Create issue / GitLab workspace (4 nested sub-modals) / issue detail / image lightbox. |
+| `kanban-modals.tsx` | Settings / Create issue (createmeta-driven, chip-style multi-value fields) / GitLab workspace (nested sub-modals) / issue detail (attachments, comment composer, send-to-session) / image lightbox. |
+| `session-send.ts` | Send-to-session analysis via the official `ISession.prompt` (current session) and `workspaces.startSession()` (new session in the current workspace); image attachments ride along as image content parts (base64). |
 
 Interactions: Esc closes the topmost modal (lightbox first), focus is trapped
 and restored, `prefers-reduced-motion` disables animations, status groups are
@@ -75,7 +76,11 @@ workspace), the panel sends a prompt through the official `ISession.prompt`
 (`session-send.ts`; new sessions go through `workspaces.startSession()`). The
 message carries only the issue key plus an instruction to call `kanban-issue`
 and to analyze without modifying — the agent pulls live data through the tool,
-and the chat renders it via the existing toolview.
+and the chat renders it via the existing toolview. Image attachments are
+fetched through the host proxy and attached as image content parts (base64),
+so vision-capable models can see them; text-only models degrade gracefully.
+The issue detail tool text also lists attachments with their real Jira
+download URLs.
 
 ## The config card on a stock harness
 
