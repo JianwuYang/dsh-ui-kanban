@@ -17,12 +17,17 @@ export interface LocaleFaceLike {
 }
 
 let face: LocaleFaceLike | undefined
+// 绑定包装（face.subscribe 是原型方法，不能把未绑定的引用直接交给 useSyncExternalStore）
+let localeSubscribe: ((fn: () => void) => () => void) | undefined
+let localeGetSnapshot: (() => LocaleSnapshotLike) | undefined
 
 /** 注册时绑定 harness 的 locale 服务（不存在时保持 undefined → 回退中文）。 */
 export function bindLocale(value: unknown): void {
   const candidate = value as LocaleFaceLike | undefined
   if (candidate && typeof candidate.getSnapshot === 'function' && typeof candidate.subscribe === 'function') {
     face = candidate
+    localeSubscribe = (fn) => candidate.subscribe(fn)
+    localeGetSnapshot = () => candidate.getSnapshot()
   }
 }
 
@@ -229,8 +234,8 @@ export function t(key: TKey, params?: Record<string, string | number>): string {
 /** 组件内使用：订阅 locale 变化（语言切换自动重渲染）并返回翻译函数。 */
 export function useT(): typeof t {
   useSyncExternalStore(
-    face ? face.subscribe : noopSubscribe,
-    () => (face ? face.getSnapshot() : FALLBACK),
+    localeSubscribe ?? noopSubscribe,
+    localeGetSnapshot ?? (() => FALLBACK),
   )
   return t
 }
