@@ -1,0 +1,72 @@
+{
+  "name": "dsh-kanban",
+  "version": "0.1.0",
+  "description": "A DeepSeek Harness (dsh) plugin that turns the ji-kanban Jira/GitLab board into an agent-worked kanban: each project is a workspace-wide connection plus a local issue cache, exposed as model-callable tools with a browser board view.",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "lib/index.d.ts",
+    "cordis.patch.yml"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "slots"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf lib",
+    "smoke": "node test/smoke.mjs",
+    "test": "pnpm build && node test/smoke.mjs",
+    "prepare": "tsdown"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "cordis",
+    "plugin",
+    "kanban",
+    "jira",
+    "gitlab"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@deepseek-ai/dsh-settings": "^0.1.0-rc.6",
+    "@deepseek-ai/schemastery": "^3.18.1",
+    "axios": "^1.7.7",
+    "jira-data-center-client": "^1.0.44"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-tools": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-settings": "^0.1.0-rc.5",
+    "react": "^18.0.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-tools": "^0.1.0-rc.6",
+    "@types/node": "^22.20.0",
+    "@types/react": "^18.3.0",
+    "tsdown": "^0.22.2",
+    "typescript": "^6.0.3"
+  }
+}

@@ -1,0 +1,8 @@
+node_modules
+lib
+.pnpm-store
+*.log
+.DS_Store
+.claude/
+.dsh/
+dev/cordis.yml

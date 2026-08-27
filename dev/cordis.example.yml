@@ -1,0 +1,30 @@
+# 本地开发 overlay 模板：复制为 dev/cordis.yml（已被 .gitignore 忽略）后，
+# 把 name 改成本仓库在你机器上的绝对路径，再在 deepseek-harness 源码根目录运行：
+#
+#   pnpm dsh web --patch /absolute/path/to/dsh-ui-kanban/dev/cordis.yml
+#
+# 插件路径必须为绝对路径（overlay 不改变 profile 的模块解析目录）。
+#
+# 注意：overlay 只加载 host 半边（模块解析到源码文件，发现不了 dsh.client 包级声明）。
+# 要测试浏览器半边（src/client/），必须把包安装进 profile：
+#   pnpm dsh plugin --profile web add /absolute/path/to/dsh-ui-kanban && pnpm dsh web
+#
+# 工作区模型：全局 jira/gitlab 放 host+token；projects 按工作区 id 写差异项覆盖。
+- insert:
+    - id: dsh-kanban
+      name: "/absolute/path/to/dsh-ui-kanban/src/index.ts"
+      config:
+        dataDir: ""
+        allowSelfSigned: true
+        verbose: true
+        jira:
+          baseUrl: "https://jira.example.com"
+          apiToken: ""
+        gitlab:
+          baseUrl: ""
+          apiToken: ""
+        projects:
+          - id: default
+            jira:
+              projectKey: "PROJ"
+              jql: ""
