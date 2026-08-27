@@ -54,6 +54,7 @@ host 半边运行 `kanban-issues`（或 `kanban-sync`）时输出结构化的
 | `kanban-board.tsx` | 唯一的看板视图：面向窄面板的按状态分组纵向列表——可折叠分组（状态点 + 数量 + 箭头）、整行卡片、本地搜索。没有拖拽、没有状态筛选 chips：移动 issue 走「点击 → 详情 → 流转按钮」（键盘友好），分组本身就是状态概览。 |
 | `kanban-modals.tsx` | 设置 / 新建 issue（createmeta 驱动、芯片式多值字段）/ GitLab 工作区（嵌套子弹窗）/ issue 详情（附件、评论框、丢进会话分析）/ 图片灯箱。 |
 | `session-send.ts` | 经官方 `ISession.prompt`（当前会话）与 `workspaces.startSession()`（当前工作区新建会话）实现「丢进会话分析」；图片附件以 image content part（base64）随消息发出。 |
+| `locales.ts` | 轻量 i18n：zh/en 两本字典 + `useT()` 订阅 harness 的 `ctx.locale` 服务（apply 时 `bindLocale`，无该服务时回退中文）。所有 UI 文案走 `t(key)`；分析提示词跟随当前界面语言。 |
 
 交互：Esc 关闭最顶层弹窗（灯箱优先）、焦点陷阱与恢复、`prefers-reduced-motion`
 禁用动画、状态分组按类目着色（待办中性色 / 进行中警示色 / 已完成成功色）、优先级

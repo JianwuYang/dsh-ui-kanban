@@ -21,6 +21,7 @@ import React from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import { NAMESPACE } from './constants.ts'
 import { IcBoard } from './icons.tsx'
+import { t, useT } from './locales.ts'
 import { KanbanApp } from './kanban-app.tsx'
 import { sendToCurrentSession, sendToNewSession } from './session-send.ts'
 import type { ObservableSnapshotLike, PromptContentPartLike, SessionListStateLike, SessionsServiceLike, WorkspacesServiceLike } from './types.ts'
@@ -47,7 +48,7 @@ export function registerKanbanActivity(ctx: Context): void {
   const sessions = (ctx.get('sessions') as SessionsServiceLike | undefined)
   const workspaces = (ctx.get('workspaces') as WorkspacesServiceLike | undefined)
   ctx.slots.inject('shell.overlay', () => ctx.slots.register(
-    { name: 'shell.overlay', id: `${NAMESPACE}-panel`, order: 80, label: 'dsh-kanban 看板' },
+    { name: 'shell.overlay', id: `${NAMESPACE}-panel`, order: 80, label: `dsh-kanban ${t('appBrand')}` },
     () => React.createElement(KanbanFloatPanel, { sessions, workspaces }),
   ))
 }
@@ -55,7 +56,7 @@ export function registerKanbanActivity(ctx: Context): void {
 /** 注册 `conversation.session.header.utilities` 的「看板」图标按钮（session 作用域）。 */
 export function registerKanbanHeader(ctx: Context): void {
   ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register(
-    { name: 'conversation.session.header.utilities', id: NAMESPACE, order: 60, label: 'dsh-kanban 看板' },
+    { name: 'conversation.session.header.utilities', id: NAMESPACE, order: 60, label: `dsh-kanban ${t('appBrand')}` },
     (props: { sessionId?: string }) => React.createElement(HeaderKanbanButton, props),
   ))
 }
@@ -64,15 +65,16 @@ export function registerKanbanHeader(ctx: Context): void {
 
 /** 会话标题旁的「看板」按钮（图标 + 文字，点击区域更大）：点击打开当前会话的悬浮看板。 */
 function HeaderKanbanButton({ sessionId }: { sessionId?: string }): React.ReactElement {
+  const t = useT()
   return React.createElement('button', {
     type: 'button',
     className: 'kkb-header-btn kkb-header-btn--label',
     onClick: () => openKanban(sessionId),
-    'aria-label': '打开 dsh-kanban 看板',
-    title: '看板',
+    'aria-label': t('headerButtonAria'),
+    title: t('appBrand'),
   },
     React.createElement(IcBoard, { className: 'kkb-header-icon', size: 14 }),
-    React.createElement('span', null, '看板'),
+    React.createElement('span', null, t('appBrand')),
   )
 }
 
@@ -102,7 +104,7 @@ function KanbanFloatPanel({ sessions, workspaces }: {
     const result = target === 'current'
       ? await sendToCurrentSession(sessions, key, images)
       : await sendToNewSession(sessions, workspaces, key, images)
-    if (!result.ok) throw new Error(result.error ?? '发送失败')
+    if (!result.ok) throw new Error(result.error ?? t('sendFailed'))
     if (target === 'new') closeKanban()
   }, [sessions, workspaces])
 

@@ -15,6 +15,7 @@ import { BoardToolbar, IssueGroups } from './kanban-board.tsx'
 import { CreateModal, DetailModal, GitLabPanel, SettingsModal } from './kanban-modals.tsx'
 import { DialogsProvider } from './modal.tsx'
 import { EmptyState, IconButton, SkeletonBoard, formatDateTime } from './primitives.tsx'
+import { useT } from './locales.ts'
 import { ToastProvider, useToast } from './toast.tsx'
 import type { PromptContentPartLike } from './types.ts'
 import { IcBoard, IcClose, IcGear, IcGitlab, IcPlus, IcSync, IcWarning } from './icons.tsx'
@@ -64,6 +65,7 @@ function KanbanAppInner({ onClose, variant = 'fullscreen', projectTarget, onSend
 }): React.ReactElement {
   const [state, setState] = React.useState<AppState>(initial)
   const toast = useToast()
+  const t = useT()
 
   const patch = (p: Partial<AppState>): void => setState((s) => ({ ...s, ...p }))
   const active = state.projects.find((p) => p.id === state.currentProjectId) ?? state.projects[0]
@@ -92,18 +94,18 @@ function KanbanAppInner({ onClose, variant = 'fullscreen', projectTarget, onSend
 
   const openSettings = (): void => {
     if (state.configured) patch({ settingsOpen: true })
-    else { toast('请先在设置里配置 Jira 连接'); patch({ settingsOpen: true }) }
+    else { toast(t('configJiraFirst')); patch({ settingsOpen: true }) }
   }
 
   const runSync = async (): Promise<void> => {
-    if (!state.configured) { toast('请先在设置里配置 Jira 连接'); patch({ settingsOpen: true }); return }
+    if (!state.configured) { toast(t('configJiraFirst')); patch({ settingsOpen: true }); return }
     patch({ syncing: true, error: null })
     try {
       const result: SyncResult = await api.sync(undefined, state.currentProjectId ?? undefined)
       await load(state.currentProjectId ?? undefined, true)
-      toast(`同步完成：${result.total} 个 issue（新增 ${result.added}，更新 ${result.updated}）`)
+      toast(t('syncDone', { total: result.total, added: result.added, updated: result.updated }))
     } catch (error) {
-      toast(error instanceof Error ? error.message : '同步失败', 'error')
+      toast(error instanceof Error ? error.message : t('syncFailed'), 'error')
     } finally {
       patch({ syncing: false })
     }
@@ -125,23 +127,23 @@ function KanbanAppInner({ onClose, variant = 'fullscreen', projectTarget, onSend
     try {
       await api.saveSettings(next, state.currentProjectId ?? undefined)
       await load(state.currentProjectId ?? undefined, true)
-      toast('设置已保存')
+      toast(t('settingsSaved'))
       patch({ settingsOpen: false })
     } catch (error) {
-      throw error instanceof Error ? error : new Error('保存失败')
+      throw error instanceof Error ? error : new Error(t('saveFailed'))
     }
   }
 
-  const metaText = state.meta ? `${state.meta.issueCount} issues${state.meta.lastSyncedAt ? ` · 同步于 ${formatDateTime(state.meta.lastSyncedAt)}` : ''}` : ''
+  const metaText = state.meta ? `${t('issuesCount', { n: state.meta.issueCount })}${state.meta.lastSyncedAt ? ` · ${t('syncedAt', { time: formatDateTime(state.meta.lastSyncedAt) })}` : ''}` : ''
 
   if (state.loading) {
     return (
       <div className={variant === 'panel' ? 'kkb-app kkb-app--panel' : 'kkb-app'}>
         <header className={variant === 'panel' ? 'kkb-app__bar kkb-app__bar--panel' : 'kkb-app__bar'}>
           <div className="kkb-app__barrow">
-            <span className="kkb-app__brand"><span className="kkb-app__brandicon"><IcBoard size={16} /></span>看板</span>
+            <span className="kkb-app__brand"><span className="kkb-app__brandicon"><IcBoard size={16} /></span>{t('appBrand')}</span>
             <span className="kkb-app__spacer" />
-            <IconButton icon={<IcClose size={14} />} label="关闭" ghost onClick={onClose} />
+            <IconButton icon={<IcClose size={14} />} label={t('closePanel')} ghost onClick={onClose} />
           </div>
         </header>
         <main className="kkb-app__main"><SkeletonBoard /></main>
@@ -156,20 +158,20 @@ function KanbanAppInner({ onClose, variant = 'fullscreen', projectTarget, onSend
       {variant === 'panel' ? (
         <header className="kkb-app__bar kkb-app__bar--panel">
           <div className="kkb-app__barrow">
-            <span className="kkb-app__brand"><span className="kkb-app__brandicon"><IcBoard size={16} /></span>看板</span>
+            <span className="kkb-app__brand"><span className="kkb-app__brandicon"><IcBoard size={16} /></span>{t('appBrand')}</span>
             <span className="kkb-app__meta" title={metaText}>
               {active?.projectKey ? `${active.name} · ${active.projectKey}` : active ? active.name : ''}
               {state.meta ? ` · ${state.meta.issueCount} issues` : ''}
             </span>
             <span className="kkb-app__spacer" />
-            <IconButton icon={<IcClose size={14} />} label="关闭" ghost onClick={onClose} />
+            <IconButton icon={<IcClose size={14} />} label={t('closePanel')} ghost onClick={onClose} />
           </div>
           <div className="kkb-app__barrow">
             <span className="kkb-app__spacer" />
-            <button type="button" className="kb-btn" disabled={state.syncing} onClick={() => void runSync()}>{syncingIcon}{state.syncing ? '同步中…' : '同步'}</button>
-            <button type="button" className="kb-btn" onClick={() => { if (state.configured) patch({ createOpen: true }); else openSettings() }}><IcPlus size={13} />新建</button>
+            <button type="button" className="kb-btn" disabled={state.syncing} onClick={() => void runSync()}>{syncingIcon}{state.syncing ? t('syncing') : t('sync')}</button>
+            <button type="button" className="kb-btn" onClick={() => { if (state.configured) patch({ createOpen: true }); else openSettings() }}><IcPlus size={13} />{t('newIssue')}</button>
             <button type="button" className="kb-btn" onClick={() => patch({ gitlabOpen: true })}><IcGitlab size={13} />GitLab</button>
-            <button type="button" className="kb-btn" onClick={() => patch({ settingsOpen: true })}><IcGear size={13} />设置</button>
+            <button type="button" className="kb-btn" onClick={() => patch({ settingsOpen: true })}><IcGear size={13} />{t('settings')}</button>
           </div>
         </header>
       ) : (
@@ -180,11 +182,11 @@ function KanbanAppInner({ onClose, variant = 'fullscreen', projectTarget, onSend
             {state.meta ? ` · ${state.meta.issueCount} issues` : ''}
           </span>
           <span className="kkb-app__spacer" />
-          <button type="button" className="kb-btn" disabled={state.syncing} onClick={() => void runSync()}>{syncingIcon}{state.syncing ? '同步中…' : '同步'}</button>
-          <button type="button" className="kb-btn" onClick={() => { if (state.configured) patch({ createOpen: true }); else openSettings() }}><IcPlus size={13} />新建</button>
+          <button type="button" className="kb-btn" disabled={state.syncing} onClick={() => void runSync()}>{syncingIcon}{state.syncing ? t('syncing') : t('sync')}</button>
+          <button type="button" className="kb-btn" onClick={() => { if (state.configured) patch({ createOpen: true }); else openSettings() }}><IcPlus size={13} />{t('newIssue')}</button>
           <button type="button" className="kb-btn" onClick={() => patch({ gitlabOpen: true })}><IcGitlab size={13} />GitLab</button>
-          <button type="button" className="kb-btn" onClick={() => patch({ settingsOpen: true })}><IcGear size={13} />设置</button>
-          <IconButton icon={<IcClose size={14} />} label="关闭" ghost onClick={onClose} />
+          <button type="button" className="kb-btn" onClick={() => patch({ settingsOpen: true })}><IcGear size={13} />{t('settings')}</button>
+          <IconButton icon={<IcClose size={14} />} label={t('closePanel')} ghost onClick={onClose} />
         </header>
       )}
 
@@ -197,15 +199,15 @@ function KanbanAppInner({ onClose, variant = 'fullscreen', projectTarget, onSend
 
       <main className="kkb-app__main">
         {!state.configured
-          ? <EmptyState icon={<IcBoard size={20} />} title="尚未连接 Jira" hint="请先在设置里配置 Jira 连接，再同步。"
-              action={<button className="kb-btn kb-btn--primary" onClick={() => patch({ settingsOpen: true })}><IcGear size={13} />打开设置</button>} />
+          ? <EmptyState icon={<IcBoard size={20} />} title={t('notConfiguredTitle')} hint={t('notConfiguredHint')}
+              action={<button className="kb-btn kb-btn--primary" onClick={() => patch({ settingsOpen: true })}><IcGear size={13} />{t('openSettings')}</button>} />
           : state.issues.length === 0
-            ? <EmptyState icon={<IcSync size={20} />} title={state.syncing ? '正在同步…' : '还没有同步'}
-                hint={state.syncing ? '正在自动从 Jira 拉取最新 issue。' : '点击「同步」拉取 Jira 里的 issue。'}
-                action={<button className="kb-btn kb-btn--primary" disabled={state.syncing} onClick={() => void runSync()}>{syncingIcon}{state.syncing ? '同步中…' : '同步'}</button>} />
+            ? <EmptyState icon={<IcSync size={20} />} title={state.syncing ? t('autoSyncingTitle') : t('noSyncTitle')}
+                hint={state.syncing ? t('autoSyncingHint') : t('noSyncHint')}
+                action={<button className="kb-btn kb-btn--primary" disabled={state.syncing} onClick={() => void runSync()}>{syncingIcon}{state.syncing ? t('syncing') : t('sync')}</button>} />
             : <>
                 <BoardToolbar search={state.search} onSearch={(v) => patch({ search: v })}
-                  meta={state.meta?.lastSyncedAt ? `同步于 ${formatDateTime(state.meta.lastSyncedAt)}` : ''} />
+                  meta={state.meta?.lastSyncedAt ? t('syncedAt', { time: formatDateTime(state.meta.lastSyncedAt) }) : ''} />
                 <IssueGroups issues={state.issues} onOpen={openDetail} search={state.search} />
               </>}
       </main>

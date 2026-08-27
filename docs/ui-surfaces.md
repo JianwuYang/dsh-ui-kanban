@@ -62,6 +62,7 @@ The client half is organized into small modules under `src/client/`:
 | `kanban-board.tsx` | The single board view: a status-grouped vertical list for narrow panels — collapsible sections (status dot + count + chevron), full-width cards, client-side search. No drag & drop and no status filter chips: moving an issue goes through click → detail → transition buttons (keyboard-friendly), and the grouping itself is the status overview. |
 | `kanban-modals.tsx` | Settings / Create issue (createmeta-driven, chip-style multi-value fields) / GitLab workspace (nested sub-modals) / issue detail (attachments, comment composer, send-to-session) / image lightbox. |
 | `session-send.ts` | Send-to-session analysis via the official `ISession.prompt` (current session) and `workspaces.startSession()` (new session in the current workspace); image attachments ride along as image content parts (base64). |
+| `locales.ts` | Lightweight i18n: zh/en dictionaries + `useT()` subscribed to the harness `ctx.locale` service (`bindLocale` at apply time; falls back to zh when absent). All UI copy goes through `t(key)`; the analysis prompt follows the active UI language. |
 
 Interactions: Esc closes the topmost modal (lightbox first), focus is trapped
 and restored, `prefers-reduced-motion` disables animations, status groups are

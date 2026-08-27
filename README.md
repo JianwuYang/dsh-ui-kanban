@@ -53,6 +53,8 @@ view.
 - **Agent-side tools with rich chat rendering.** Tool results render as board
   columns, issue details, project lists, and sync stats directly in the
   conversation.
+- **Bilingual UI.** Every surface follows the harness locale setting
+  (中文 / English) and re-renders on language switch.
 
 ## Install as a bundle (for users)
 

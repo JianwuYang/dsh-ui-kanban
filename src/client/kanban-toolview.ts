@@ -15,6 +15,7 @@ import React from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import { BOARD_TOOL_KEYS, DETAIL_TOOL_KEYS } from './constants.ts'
 import { Avatar, StatusDot, formatDateTime } from './primitives.tsx'
+import { t } from './locales.ts'
 import type { ToolCallBlockLike, ToolCallOwnerPropsLike } from './types.ts'
 
 /* ---- meta 结构（host 半边 presentationMeta 的输出） ---- */
@@ -74,14 +75,14 @@ function blockText(block: ToolCallBlockLike | undefined): string {
 function renderBoard(meta: BoardMeta): React.ReactElement {
   const board = meta.board ?? {}
   const columns = board.columns ?? []
-  const metaText = `${board.projectKey ? `${board.projectKey} · ` : ''}${board.total ?? 0} issues`.trim()
+  const metaText = `${board.projectKey ? `${board.projectKey} · ` : ''}${t('issuesCount', { n: board.total ?? 0 })}`.trim()
   return React.createElement('div', { className: 'kb-board kb-board--tool' },
     React.createElement('div', { className: 'kb-toolbar' },
       React.createElement('span', { className: 'kb-toolbar__title' }, board.project ?? 'Kanban'),
       React.createElement('span', { className: 'kb-toolbar__meta' }, metaText),
     ),
     columns.length === 0
-      ? React.createElement('div', { className: 'kb-note' }, '暂无缓存数据——先让模型运行 kanban-sync 同步 Jira。')
+      ? React.createElement('div', { className: 'kb-note' }, t('tvNoCache'))
       : React.createElement('div', { className: 'kb-board' }, columns.map((c, i) => renderColumn(c, i))),
   )
 }
@@ -97,7 +98,7 @@ function renderColumn(col: BoardColumnLike, index: number): React.ReactElement {
       React.createElement('span', { className: 'kb-column__count' }, String(issues.length)),
     ),
     issues.length === 0
-      ? React.createElement('div', { className: 'kb-note kb-column__empty' }, '空')
+      ? React.createElement('div', { className: 'kb-note kb-column__empty' }, t('tvEmptyCol'))
       : React.createElement('div', { className: 'kb-column__body' }, issues.map((issue, j) => renderIssue(issue, j))),
   )
 }
@@ -145,9 +146,9 @@ function renderDetail(meta: DetailMeta): React.ReactElement {
       React.createElement('span', { className: 'kb-toolbar__title' }, `${d.key ?? ''} · ${d.summary ?? ''}`),
     ),
     React.createElement('div', { className: 'kb-detail__meta' },
-      d.status ? React.createElement('span', { className: 'kb-detail__chip' }, `状态: ${d.status}`) : null,
-      d.issueType ? React.createElement('span', { className: 'kb-detail__chip' }, `类型: ${d.issueType}`) : null,
-      d.priority ? React.createElement('span', { className: 'kb-detail__chip' }, `优先级: ${d.priority}`) : null,
+      d.status ? React.createElement('span', { className: 'kb-detail__chip' }, t('statusChip', { name: d.status })) : null,
+      d.issueType ? React.createElement('span', { className: 'kb-detail__chip' }, t('typeChip', { name: d.issueType })) : null,
+      d.priority ? React.createElement('span', { className: 'kb-detail__chip' }, t('priorityChip', { name: d.priority })) : null,
       d.assignee
         ? React.createElement('span', { className: 'kb-detail__chip' },
             React.createElement(Avatar, { name: d.assignee, size: 'sm' }), d.assignee)
@@ -160,7 +161,7 @@ function renderDetail(meta: DetailMeta): React.ReactElement {
         : null,
     (d.attachments ?? []).length > 0
       ? React.createElement('div', { className: 'kb-detail__section' },
-          React.createElement('div', { className: 'kb-detail__label' }, `附件（${(d.attachments ?? []).length}）`),
+          React.createElement('div', { className: 'kb-detail__label' }, t('attachmentsLabel', { n: (d.attachments ?? []).length })),
           React.createElement('div', { className: 'kb-detail__transitions' },
             (d.attachments ?? []).map((a, i) => React.createElement('a', {
               className: 'kb-tag', key: i, href: a.url, target: '_blank', rel: 'noreferrer noopener', title: a.url,
@@ -168,7 +169,7 @@ function renderDetail(meta: DetailMeta): React.ReactElement {
       : null,
     transitions.length > 0
       ? React.createElement('div', { className: 'kb-detail__section' },
-          React.createElement('div', { className: 'kb-detail__label' }, '可用流转（用 kanban-move <key> <id> 移动）'),
+          React.createElement('div', { className: 'kb-detail__label' }, t('tvTransitions')),
           React.createElement('div', { className: 'kb-detail__transitions' },
             transitions.map((t, i) => React.createElement('span', { className: 'kb-tag', key: i }, t.name))))
       : null,
@@ -185,17 +186,17 @@ function renderProjects(meta: ProjectsMeta): React.ReactElement {
   const active = meta.projects?.currentWorkspaceId ?? ''
   return React.createElement('div', { className: 'kb-detail kb-detail--tool' },
     React.createElement('div', { className: 'kb-toolbar' },
-      React.createElement('span', { className: 'kb-toolbar__title' }, 'Kanban projects'),
+      React.createElement('span', { className: 'kb-toolbar__title' }, t('tvProjects')),
     ),
     projects.length === 0
-      ? React.createElement('div', { className: 'kb-note' }, '没有项目——在工作区配置 Jira/GitLab host+token 后同步。')
+      ? React.createElement('div', { className: 'kb-note' }, t('tvNoProjects'))
       : React.createElement('div', { className: 'kb-projects' },
           projects.map((p, i) => React.createElement('div', {
             className: p.id === active ? 'kb-projects__item kb-projects__active' : 'kb-projects__item', key: i,
           },
             p.id === active ? React.createElement('span', { className: 'kb-projects__dot' }) : null,
             React.createElement('span', { className: 'kb-projects__name' }, `${p.name}${p.projectKey ? ` (${p.projectKey})` : ''}`),
-            React.createElement('span', { className: 'kb-projects__meta' }, `${p.issueCount ?? 0} issues`),
+            React.createElement('span', { className: 'kb-projects__meta' }, t('issuesCount', { n: p.issueCount ?? 0 })),
           )),
         ),
   )
@@ -207,21 +208,21 @@ function renderSync(meta: SyncMeta): React.ReactElement {
   const r = meta.result ?? {}
   return React.createElement('div', { className: 'kb-detail kb-detail--tool' },
     React.createElement('div', { className: 'kb-toolbar' },
-      React.createElement('span', { className: 'kb-toolbar__title' }, 'Sync complete'),
+      React.createElement('span', { className: 'kb-toolbar__title' }, t('tvSyncTitle')),
       r.project ? React.createElement('span', { className: 'kb-toolbar__meta' }, r.project) : null,
     ),
     React.createElement('div', { className: 'kb-statrow' },
       React.createElement('div', { className: 'kb-statrow__item' },
         React.createElement('span', { className: 'kb-statrow__num' }, String(r.total ?? 0)),
-        React.createElement('span', { className: 'kb-statrow__label' }, 'issues 总数')),
+        React.createElement('span', { className: 'kb-statrow__label' }, t('tvStatTotal'))),
       React.createElement('div', { className: 'kb-statrow__item' },
         React.createElement('span', { className: 'kb-statrow__num' }, String(r.added ?? 0)),
-        React.createElement('span', { className: 'kb-statrow__label' }, '新增')),
+        React.createElement('span', { className: 'kb-statrow__label' }, t('tvStatAdded'))),
       React.createElement('div', { className: 'kb-statrow__item' },
         React.createElement('span', { className: 'kb-statrow__num' }, String(r.updated ?? 0)),
-        React.createElement('span', { className: 'kb-statrow__label' }, '更新')),
+        React.createElement('span', { className: 'kb-statrow__label' }, t('tvStatUpdated'))),
     ),
-    r.lastSyncedAt ? React.createElement('div', { className: 'kb-note kb-note--tool-meta' }, `最近同步：${formatDateTime(r.lastSyncedAt)}`) : null,
+    r.lastSyncedAt ? React.createElement('div', { className: 'kb-note kb-note--tool-meta' }, t('tvLastSync', { time: formatDateTime(r.lastSyncedAt) })) : null,
   )
 }
 
@@ -230,6 +231,6 @@ function renderSync(meta: SyncMeta): React.ReactElement {
 function renderFallback(block: ToolCallBlockLike | undefined): React.ReactElement {
   const textContent = blockText(block)
   return React.createElement('div', { className: 'kb-detail kb-detail--tool' },
-    React.createElement('div', { className: 'kb-note' }, textContent || '(无内容)'),
+    React.createElement('div', { className: 'kb-note' }, textContent || t('tvFallback')),
   )
 }

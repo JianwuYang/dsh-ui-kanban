@@ -19,6 +19,7 @@ import React from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import { NAMESPACE } from './constants.ts'
 import { IcChevronDown } from './icons.tsx'
+import { t, useT, type TKey } from './locales.ts'
 import type { SettingsScopeBinderLike, SettingsScopeLike } from './types.ts'
 
 type FieldKind = 'text' | 'checkbox' | 'host' | 'secret'
@@ -26,18 +27,18 @@ type FieldKind = 'text' | 'checkbox' | 'host' | 'secret'
 interface FieldSpec {
   field: string
   kind: FieldKind
-  label: string
-  hint: string
+  labelKey: TKey
+  hintKey: TKey
 }
 
 const FIELDS: readonly FieldSpec[] = [
-  { field: 'jira.baseUrl', kind: 'host', label: '全局 Jira 地址 (baseUrl)', hint: '所有工作区在未覆盖时继承。' },
-  { field: 'jira.apiToken', kind: 'secret', label: '全局 Jira API Token', hint: '密钥仅 host 侧保存；留空则保留现有 token，输入新值则更新。' },
-  { field: 'gitlab.baseUrl', kind: 'host', label: '全局 GitLab 地址 (baseUrl)', hint: '所有工作区在未覆盖时继承。' },
-  { field: 'gitlab.apiToken', kind: 'secret', label: '全局 GitLab API Token', hint: '密钥仅 host 侧保存；留空则保留现有 token，输入新值则更新。' },
-  { field: 'dataDir', kind: 'text', label: '本地缓存目录', hint: '留空用默认 ~/.dsh/kanban（环境变量 KANBAN_DATA_DIR 优先）。' },
-  { field: 'allowSelfSigned', kind: 'checkbox', label: '信任自签名证书', hint: 'GitLab 私服/自签名 TLS 时信任证书（默认开启）。' },
-  { field: 'verbose', kind: 'checkbox', label: '打印调试日志', hint: '开启后插件输出诊断日志。' },
+  { field: 'jira.baseUrl', kind: 'host', labelKey: 'fieldGlobalJiraUrl', hintKey: 'fieldGlobalJiraUrlHint' },
+  { field: 'jira.apiToken', kind: 'secret', labelKey: 'fieldGlobalJiraToken', hintKey: 'fieldGlobalJiraTokenHint' },
+  { field: 'gitlab.baseUrl', kind: 'host', labelKey: 'fieldGlobalGitlabUrl', hintKey: 'fieldGlobalGitlabUrlHint' },
+  { field: 'gitlab.apiToken', kind: 'secret', labelKey: 'fieldGlobalGitlabToken', hintKey: 'fieldGlobalGitlabTokenHint' },
+  { field: 'dataDir', kind: 'text', labelKey: 'fieldDataDir', hintKey: 'fieldDataDirHint' },
+  { field: 'allowSelfSigned', kind: 'checkbox', labelKey: 'fieldAllowSelfSigned', hintKey: 'fieldAllowSelfSignedHint' },
+  { field: 'verbose', kind: 'checkbox', labelKey: 'fieldVerbose', hintKey: 'fieldVerboseHint' },
 ]
 
 /** Read the global connection host (baseUrl) from a section value object. */
@@ -263,23 +264,23 @@ export function registerConfigCard(ctx: Context): void {
 function ConfigCard({ form }: { form: CardForm | undefined }): React.ReactElement | null {
   const [, forceRender] = React.useReducer((c: number) => c + 1, 0)
   const [open, setOpen] = React.useState(false)
+  useT() // 语言切换时重渲染（renderField 走模块级 t）
   React.useEffect(() => (form === undefined ? undefined : form.subscribe(forceRender)), [form])
 
   if (form === undefined) {
-    return statusCard('配置卡片未挂载', '设置服务（settingsScope）未提供；web profile（dsh-web-app）自带该服务，请用 dsh web 启动。')
+    return statusCard(t('cardNotMounted'), t('cardNotMountedBody'))
   }
 
   const shell = form.shell()
   if (!shell.available) {
     if (shell.status === 'unavailable') {
       return statusCard(
-        `配置命名空间 ${NAMESPACE} 未对 Web 暴露`,
-        'harness 的 Web 网关只向设置面板暴露白名单内的 settings 命名空间（WEB_SETTINGS_NAMESPACES）。'
-        + 'host 半边不受影响：kanban-* 工具仍实时读取配置。',
-        `要让本卡片可编辑：在 harness 的 WEB_SETTINGS_NAMESPACES 里加一行 ${NAMESPACE} 后重建/重启 harness。`,
+        t('cardNotExposed'),
+        t('cardNotExposedBody'),
+        t('cardNotExposedRemedy'),
       )
     }
-    return statusCard('正在读取配置…', '命名空间数据到达后本卡片会自动切换为可编辑状态。')
+    return statusCard(t('cardLoading'), t('cardLoadingBody'))
   }
 
   const blocked = !shell.dirty || shell.invalid || shell.saving
@@ -293,19 +294,19 @@ function ConfigCard({ form }: { form: CardForm | undefined }): React.ReactElemen
     },
       React.createElement('span', { className: 'kkb-config-head-text' },
         React.createElement('span', { className: 'kkb-config-name' }, NAMESPACE),
-        React.createElement('span', { className: 'kkb-config-desc' }, '看板插件公共配置'),
+        React.createElement('span', { className: 'kkb-config-desc' }, t('cardDesc')),
       ),
-      shell.dirty ? React.createElement('span', { className: 'kkb-pending' }, '未保存') : null,
+      shell.dirty ? React.createElement('span', { className: 'kkb-pending' }, t('unsaved')) : null,
       React.createElement('span', { className: open ? 'kkb-chevron kkb-chevron-open' : 'kkb-chevron' },
         React.createElement(IcChevronDown, { size: 14 })),
     ),
     open ? React.createElement('div', { className: 'kkb-config-body' },
-      !shell.writable ? React.createElement('p', { className: 'kkb-read-only', role: 'status' }, '当前设置文档只读（memory 模式或只读 provider）') : null,
+      !shell.writable ? React.createElement('p', { className: 'kkb-read-only', role: 'status' }, t('readOnlyNote')) : null,
       FIELDS.map((spec) => renderField(form, spec, shell)),
       React.createElement('div', { className: 'kkb-config-footer' },
-        shell.failed ? React.createElement('p', { className: 'kkb-failed', role: 'status' }, '保存失败，草稿已保留，请修正后重试') : null,
-        React.createElement('button', { type: 'button', className: 'kkb-discard', disabled: !shell.dirty || shell.saving, onClick: () => form.discard() }, '放弃'),
-        React.createElement('button', { type: 'button', className: 'kkb-save', disabled: blocked, onClick: () => { void form.save() } }, shell.saving ? '保存中…' : '保存'),
+        shell.failed ? React.createElement('p', { className: 'kkb-failed', role: 'status' }, t('cardSaveFailed')) : null,
+        React.createElement('button', { type: 'button', className: 'kkb-discard', disabled: !shell.dirty || shell.saving, onClick: () => form.discard() }, t('discard')),
+        React.createElement('button', { type: 'button', className: 'kkb-save', disabled: blocked, onClick: () => { void form.save() } }, shell.saving ? t('saving') : t('save')),
       ),
     ) : null,
   )
@@ -337,15 +338,15 @@ function renderField(form: CardForm, spec: FieldSpec, shell: CardShell): React.R
 
   return React.createElement('div', { className: 'kkb-field' },
     React.createElement('div', { className: 'kkb-field-head' },
-      React.createElement('label', { className: 'kkb-label', htmlFor: `kkb-${spec.field}` }, spec.label),
+      React.createElement('label', { className: 'kkb-label', htmlFor: `kkb-${spec.field}` }, t(spec.labelKey)),
       state.overridden
         ? React.createElement('span', { className: 'kkb-badges' },
-            React.createElement('span', { className: 'kkb-badge' }, '已覆盖'),
-            React.createElement('button', { type: 'button', className: 'kkb-reset', disabled, 'aria-label': `重置 ${spec.label}`, onClick: () => form.resetField(spec.field) }, '重置'),
+            React.createElement('span', { className: 'kkb-badge' }, t('overridden')),
+            React.createElement('button', { type: 'button', className: 'kkb-reset', disabled, 'aria-label': t('resetAria', { label: t(spec.labelKey) }), onClick: () => form.resetField(spec.field) }, t('reset')),
           )
         : null,
     ),
     control,
-    React.createElement('p', { className: 'kkb-hint' }, spec.hint),
+    React.createElement('p', { className: 'kkb-hint' }, t(spec.hintKey)),
   )
 }

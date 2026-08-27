@@ -10,6 +10,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import { injectStyles } from './styles.ts'
+import { bindLocale } from './locales.ts'
 import { registerConfigCard } from './config-card.ts'
 import { registerKanbanToolview } from './kanban-toolview.ts'
 import { registerKanbanActivity, registerKanbanHeader } from './kanban-activity.tsx'
@@ -23,6 +24,8 @@ export const inject = ['slots']
  */
 export function apply(ctx: Context): void {
   injectStyles()
+  // 绑定 harness 的 locale 服务：语言切换时 UI 文案跟着变（zh/en）。
+  bindLocale(ctx.get('locale'))
   registerConfigCard(ctx)
   registerKanbanToolview(ctx)
   registerKanbanActivity(ctx)

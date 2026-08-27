@@ -15,6 +15,7 @@ import { IcBranch, IcCheck, IcChevronDown, IcChevronLeft, IcChevronRight, IcClos
 import { Modal, useChoice, useConfirm } from './modal.tsx'
 import type { PromptContentPartLike } from './types.ts'
 import { Avatar, CopyButton, EmptyState, SegToggle, SkeletonCards, SkeletonDetail, StatusDot, formatDateTime } from './primitives.tsx'
+import { t as translate, useT, type TKey } from './locales.ts'
 import { useToast } from './toast.tsx'
 
 /* ------------------------------ 小部件 ------------------------------ */
@@ -59,6 +60,7 @@ function SelectControl({ value, onChange, options }: { value: string; onChange: 
 function MultiValueField({ value, onChange, options }: {
   value: string; onChange: (v: string) => void; options: string[]
 }): React.ReactElement {
+  const t = useT()
   const [input, setInput] = React.useState('')
   // 建议下拉的显隐：聚焦/输入时展开，选中后、失焦或 Esc 收起。
   const [open, setOpen] = React.useState(false)
@@ -83,13 +85,13 @@ function MultiValueField({ value, onChange, options }: {
         <div className="kb-multi__chips">
           {selected.map((s) => (
             <span key={s} className="kb-tag">{s}
-              <button type="button" className="kb-tag__x" aria-label={`移除 ${s}`} onClick={() => remove(s)}><IcClose size={10} /></button>
+              <button type="button" className="kb-tag__x" aria-label={t('removeAttachAria', { name: s })} onClick={() => remove(s)}><IcClose size={10} /></button>
             </span>
           ))}
         </div>
       ) : null}
       <div className="kb-combo">
-        <input className="kb-input" value={input} placeholder="回车添加新值，或从建议中选择"
+        <input className="kb-input" value={input} placeholder={t('multiPlaceholder')}
           onFocus={() => { if (options.length > 0) setOpen(true) }}
           onChange={(e) => { setInput(e.target.value); setOpen(true) }}
           onBlur={() => setOpen(false)}
@@ -123,36 +125,37 @@ export function SettingsModal({ settings, onClose, onSave }: {
   const [testResult, setTestResult] = React.useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = React.useState(false)
   const toast = useToast()
+  const t = useT()
 
   const save = async (): Promise<void> => {
     setBusy(true)
     // localRepo 不随表单保存（默认即工作区目录；PUT 按节合并，省略不影响已有覆盖）
     try { await onSave({ jira, gitlab }) }
-    catch (error) { toast(error instanceof Error ? error.message : '保存失败', 'error') }
+    catch (error) { toast(error instanceof Error ? error.message : t('saveFailed'), 'error') }
     finally { setBusy(false) }
   }
   const testJira = async (): Promise<void> => {
     setTestResult(null)
     try {
       const r = await api.testSettings(jira)
-      setTestResult(r.ok ? { ok: true, text: `连接成功：${r.user ?? ''}` } : { ok: false, text: `失败：${r.error ?? ''}` })
-    } catch (e) { setTestResult({ ok: false, text: e instanceof Error ? e.message : '失败' }) }
+      setTestResult(r.ok ? { ok: true, text: t('testOk', { user: r.user ?? '' }) } : { ok: false, text: t('testFail', { error: r.error ?? '' }) })
+    } catch (e) { setTestResult({ ok: false, text: e instanceof Error ? e.message : t('testFail', { error: '' }) }) }
   }
   const testGitlab = async (): Promise<void> => {
     setTestResult(null)
     try {
       const r = await api.testGitlab(gitlab)
-      setTestResult(r.ok ? { ok: true, text: `连接成功：${r.user ?? ''}` } : { ok: false, text: `失败：${r.error ?? ''}` })
-    } catch (e) { setTestResult({ ok: false, text: e instanceof Error ? e.message : '失败' }) }
+      setTestResult(r.ok ? { ok: true, text: t('testOk', { user: r.user ?? '' }) } : { ok: false, text: t('testFail', { error: r.error ?? '' }) })
+    } catch (e) { setTestResult({ ok: false, text: e instanceof Error ? e.message : t('testFail', { error: '' }) }) }
   }
 
   const tabs: { value: SettingsTab; label: string }[] = [
-    { value: 'jira', label: 'Jira' },
-    { value: 'gitlab', label: 'GitLab' },
+    { value: 'jira', label: t('tabJira') },
+    { value: 'gitlab', label: t('tabGitlab') },
   ]
 
   return (
-    <Modal title="设置" icon={<IcGear size={14} />} onClose={onClose} width="xl" footer={null}>
+    <Modal title={t('settingsTitle')} icon={<IcGear size={14} />} onClose={onClose} width="xl" footer={null}>
       <div className="kb-tabs">
         {tabs.map((t) => (
           <button key={t.value} className={tab === t.value ? 'kb-tab kb-tab--on' : 'kb-tab'} role="tab" aria-selected={tab === t.value} onClick={() => setTab(t.value)}>{t.label}</button>
@@ -161,26 +164,26 @@ export function SettingsModal({ settings, onClose, onSave }: {
 
       {tab === 'jira' ? (
         <div className="kb-form">
-          <Field label="Base URL"><input className="kb-input" value={jira.baseUrl} onChange={(e) => setJira({ ...jira, baseUrl: e.target.value })} placeholder="https://jira.example.com" /></Field>
-          <Field label="API Token"><input className="kb-input" type="password" value={jira.apiToken} onChange={(e) => setJira({ ...jira, apiToken: e.target.value })} placeholder="(已保存的 token 留空则不变)" /></Field>
-          <Field label="Project Key"><input className="kb-input" value={jira.projectKey} onChange={(e) => setJira({ ...jira, projectKey: e.target.value })} placeholder="PROJ" /></Field>
-          <Field label="JQL 过滤"><input className="kb-input" value={jira.jql} onChange={(e) => setJira({ ...jira, jql: e.target.value })} placeholder="(留空 = 全部)" /></Field>
+          <Field label={t('fieldBaseUrl')}><input className="kb-input" value={jira.baseUrl} onChange={(e) => setJira({ ...jira, baseUrl: e.target.value })} placeholder="https://jira.example.com" /></Field>
+          <Field label={t('fieldApiToken')}><input className="kb-input" type="password" value={jira.apiToken} onChange={(e) => setJira({ ...jira, apiToken: e.target.value })} placeholder={t('tokenPlaceholder')} /></Field>
+          <Field label={t('fieldProjectKey')}><input className="kb-input" value={jira.projectKey} onChange={(e) => setJira({ ...jira, projectKey: e.target.value })} placeholder={t('projectKeyPlaceholder')} /></Field>
+          <Field label={t('fieldJql')}><input className="kb-input" value={jira.jql} onChange={(e) => setJira({ ...jira, jql: e.target.value })} placeholder={t('jqlPlaceholder')} /></Field>
           {testResult ? <p className={testResult.ok ? 'kb-note kb-note--ok' : 'kb-note kb-note--error'} role="status">{testResult.text}</p> : null}
           <div className="kb-form__footer">
-            <button className="kb-btn kb-btn--ghost" onClick={() => void testJira()}>测试连接</button>
-            <button className="kb-btn kb-btn--primary" disabled={busy} onClick={() => void save()}>保存</button>
+            <button className="kb-btn kb-btn--ghost" onClick={() => void testJira()}>{t('testConnection')}</button>
+            <button className="kb-btn kb-btn--primary" disabled={busy} onClick={() => void save()}>{t('save')}</button>
           </div>
         </div>
       ) : tab === 'gitlab' ? (
         <div className="kb-form">
-          <Field label="Base URL"><input className="kb-input" value={gitlab.baseUrl} onChange={(e) => setGitlab({ ...gitlab, baseUrl: e.target.value })} placeholder="https://gitlab.example.com" /></Field>
-          <Field label="Token"><input className="kb-input" type="password" value={gitlab.apiToken} onChange={(e) => setGitlab({ ...gitlab, apiToken: e.target.value })} /></Field>
-          <Field label="项目路径"><input className="kb-input" value={gitlab.project} onChange={(e) => setGitlab({ ...gitlab, project: e.target.value })} placeholder="group/repo" /></Field>
-          <label className="kb-check"><input type="checkbox" checked={gitlab.allowSelfSigned ?? true} onChange={(e) => setGitlab({ ...gitlab, allowSelfSigned: e.target.checked })} /> 信任自签名证书</label>
+          <Field label={t('fieldBaseUrl')}><input className="kb-input" value={gitlab.baseUrl} onChange={(e) => setGitlab({ ...gitlab, baseUrl: e.target.value })} placeholder="https://gitlab.example.com" /></Field>
+          <Field label={t('fieldApiToken')}><input className="kb-input" type="password" value={gitlab.apiToken} onChange={(e) => setGitlab({ ...gitlab, apiToken: e.target.value })} /></Field>
+          <Field label={t('fieldProjectPath')}><input className="kb-input" value={gitlab.project} onChange={(e) => setGitlab({ ...gitlab, project: e.target.value })} placeholder={t('projectPathPlaceholder')} /></Field>
+          <label className="kb-check"><input type="checkbox" checked={gitlab.allowSelfSigned ?? true} onChange={(e) => setGitlab({ ...gitlab, allowSelfSigned: e.target.checked })} /> {t('trustSelfSigned')}</label>
           {testResult ? <p className={testResult.ok ? 'kb-note kb-note--ok' : 'kb-note kb-note--error'} role="status">{testResult.text}</p> : null}
           <div className="kb-form__footer">
-            <button className="kb-btn kb-btn--ghost" onClick={() => void testGitlab()}>测试连接</button>
-            <button className="kb-btn kb-btn--primary" disabled={busy} onClick={() => void save()}>保存</button>
+            <button className="kb-btn kb-btn--ghost" onClick={() => void testGitlab()}>{t('testConnection')}</button>
+            <button className="kb-btn kb-btn--primary" disabled={busy} onClick={() => void save()}>{t('save')}</button>
           </div>
         </div>
       ) : null}
@@ -198,6 +201,7 @@ export function CreateModal({ onClose, onCreated, target }: { onClose: () => voi
   const [summaryError, setSummaryError] = React.useState(false)
   const [values, setValues] = React.useState<Record<string, string>>({})
   const [busy, setBusy] = React.useState(false)
+  const t = useT()
   // 创建失败的内联错误（不弹 toast——toast 3 秒消失，表单场景里等于吞掉错误）
   const [error, setError] = React.useState<string | null>(null)
 
@@ -208,7 +212,7 @@ export function CreateModal({ onClose, onCreated, target }: { onClose: () => voi
       // 后端在未指定类型时已返回首个类型的字段；自动选中首个类型（同 ui-kanban 行为），
       // 保证提交时 issuetype 一定有值、字段与选中类型一致。
       if (!issueType && m.issueTypes.length > 0) setTypeId(m.issueTypes[0]!.id)
-    }).catch((e) => setMetaError(e instanceof Error ? e.message : '加载元数据失败'))
+    }).catch((e) => setMetaError(e instanceof Error ? e.message : t('loadMetaFailed')))
   }, [target])
 
   React.useEffect(() => { loadMeta() }, [loadMeta])
@@ -252,7 +256,7 @@ export function CreateModal({ onClose, onCreated, target }: { onClose: () => voi
     }
     setBusy(true)
     try { await api.createIssue({ summary, fields: fieldMap }); onCreated() }
-    catch (e) { setError(e instanceof Error ? e.message : '创建失败') }
+    catch (e) { setError(e instanceof Error ? e.message : t('createFailed')) }
     finally { setBusy(false) }
   }
 
@@ -275,33 +279,33 @@ export function CreateModal({ onClose, onCreated, target }: { onClose: () => voi
     if (f.type === 'array') return <MultiValueField value={v} onChange={(nv) => setValue(f.id, nv)} options={f.allowedValues ?? []} />
     if ((f.allowedValues ?? []).length) {
       return <SelectControl value={v} onChange={(nv) => setValue(f.id, nv)}
-        options={[{ value: '', label: '选择' }, ...(f.allowedValues ?? []).map((x) => ({ value: x, label: x }))]} />
+        options={[{ value: '', label: t('select') }, ...(f.allowedValues ?? []).map((x) => ({ value: x, label: x }))]} />
     }
     return <input className="kb-input" value={v} onChange={(e) => setValue(f.id, e.target.value)} />
   }
 
   return (
-    <Modal title="新建 issue" icon={<IcPlus size={14} />} onClose={onClose} width="md"
+    <Modal title={t('createIssueTitle')} icon={<IcPlus size={14} />} onClose={onClose} width="md"
       footer={<>
         <button type="button" className="kb-btn" onClick={onClose}>取消</button>
-        <button type="button" className="kb-btn kb-btn--primary" disabled={busy} onClick={() => void create()}>{busy ? '创建中…' : '创建'}</button>
+        <button type="button" className="kb-btn kb-btn--primary" disabled={busy} onClick={() => void create()}>{busy ? t('creating') : t('create')}</button>
       </>}>
       {metaError ? (
         <div className="kb-banner">
           <span className="kb-banner__icon"><IcWarning size={14} /></span>
           <span>{metaError}</span>
-          <span style={{ marginLeft: 'auto' }}><button className="kb-btn kb-btn--sm" onClick={() => loadMeta(typeId || undefined)}>重试</button></span>
+          <span style={{ marginLeft: 'auto' }}><button className="kb-btn kb-btn--sm" onClick={() => loadMeta(typeId || undefined)}>{t('retry')}</button></span>
         </div>
       ) : !meta ? <SkeletonDetail /> : (
         <div className="kb-form">
-          <Field label="摘要" required error={summaryError ? '摘要必填' : undefined}>
+          <Field label={t('summaryLabel')} required error={summaryError ? t('summaryRequired') : undefined}>
             <input className={`kb-input kb-input--lg${summaryError ? ' kb-input--error' : ''}`} autoFocus data-autofocus value={summary}
-              placeholder="一句话说清楚要做什么" onChange={(e) => { setSummary(e.target.value); setSummaryError(false) }} />
+              placeholder={t('summaryPlaceholder')} onChange={(e) => { setSummary(e.target.value); setSummaryError(false) }} />
           </Field>
           <div className="kb-form__grid2">
-            <Field label="问题类型">
+            <Field label={t('issueTypeLabel')}>
               <SelectControl value={typeId} onChange={openType}
-                options={[{ value: '', label: '选择类型' }, ...(meta.issueTypes ?? []).map((t) => ({ value: t.id, label: t.name }))]} />
+                options={[{ value: '', label: t('selectType') }, ...(meta.issueTypes ?? []).map((t) => ({ value: t.id, label: t.name }))]} />
             </Field>
             {priorityField ? <Field label={priorityField.name} required={priorityField.required}>{renderControl(priorityField)}</Field> : null}
           </div>
@@ -328,6 +332,7 @@ export function CreateModal({ onClose, onCreated, target }: { onClose: () => voi
 }
 
 function AssigneeField({ value, onChange, target }: { value: string; onChange: (v: string) => void; target?: string }): React.ReactElement {
+  const t = useT()
   const [options, setOptions] = React.useState<CreateUserOption[]>([])
   // value 是 Jira 用户名（提交用）；输入框显示 displayName 或用户正在输入的查询串。
   // 手输的文本不是合法用户名，必须从下拉列表里选中一人（同 ui-kanban 的 ComboSelect）。
@@ -352,7 +357,7 @@ function AssigneeField({ value, onChange, target }: { value: string; onChange: (
   }
   return (
     <div className="kb-combo">
-      <input className="kb-input" value={display} placeholder="搜索用户…"
+      <input className="kb-input" value={display} placeholder={t('assigneePlaceholder')}
         onFocus={() => void focus()} onChange={(e) => void search(e.target.value)}
         onBlur={() => setOpen(false)}
         onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setOpen(false) } }} />
@@ -380,8 +385,8 @@ function jiraNumbers(keys: string[]): string {
 }
 
 /** GitLab 状态的界面文案（内部值仍是 API 的 opened/closed/merged/all）。 */
-const STATE_LABELS: Record<GitlabListState, string> = {
-  all: '全部', opened: '开放', closed: '已关闭', merged: '已合并',
+const STATE_LABELS: Record<GitlabListState, TKey> = {
+  all: 'stateAll', opened: 'stateOpened', closed: 'stateClosed', merged: 'stateMerged',
 }
 
 function stateChipClass(state: string): string {
@@ -390,18 +395,22 @@ function stateChipClass(state: string): string {
     : 'kb-gitlab__state kb-gitlab__state--closed'
 }
 
-const stateLabel = (state: string): string => (STATE_LABELS as Record<string, string>)[state] ?? state
+const stateLabel = (state: string): string => {
+  const key = (STATE_LABELS as Record<string, TKey>)[state]
+  return key ? translate(key) : state
+}
 
 /**
  * 可点选列表（勾选 Jira 事项 / 关联议题等）：整行可点、选中态高亮 + 对勾、
  * 超过 8 项时带筛选框，右上角显示已选计数。
  */
-function SelectableList({ options, selected, onToggle, filterPlaceholder = '筛选…' }: {
+function SelectableList({ options, selected, onToggle, filterPlaceholder }: {
   options: { value: string; label: string }[]
   selected: ReadonlySet<string>
   onToggle: (value: string, on: boolean) => void
   filterPlaceholder?: string
 }): React.ReactElement {
+  const t = useT()
   const [filter, setFilter] = React.useState('')
   const q = filter.trim().toLowerCase()
   const visible = options.filter((o) => !q || o.label.toLowerCase().includes(q))
@@ -411,9 +420,9 @@ function SelectableList({ options, selected, onToggle, filterPlaceholder = '筛�
         <div className="kb-selectlist__filter">
           <div className="kb-search">
             <span className="kb-search__icon"><IcSearch size={13} /></span>
-            <input className="kb-input" value={filter} placeholder={filterPlaceholder} onChange={(e) => setFilter(e.target.value)} aria-label={filterPlaceholder} />
+            <input className="kb-input" value={filter} placeholder={filterPlaceholder ?? t('noMatch')} onChange={(e) => setFilter(e.target.value)} aria-label={filterPlaceholder} />
           </div>
-          <span className="kb-selectlist__count">已选 {selected.size}</span>
+          <span className="kb-selectlist__count">{t('selectedCount', { n: selected.size })}</span>
         </div>
       ) : null}
       <div className="kb-selectlist__body">
@@ -428,7 +437,7 @@ function SelectableList({ options, selected, onToggle, filterPlaceholder = '筛�
             </button>
           )
         })}
-        {visible.length === 0 ? <div className="kb-selectlist__empty">无匹配</div> : null}
+        {visible.length === 0 ? <div className="kb-selectlist__empty">{t('noMatch')}</div> : null}
       </div>
     </div>
   )
@@ -445,6 +454,7 @@ export function GitLabPanel({ onClose, projectId, jiraIssues }: {
   const [busy, setBusy] = React.useState(false)
   const toast = useToast()
   const confirm = useConfirm()
+  const t = useT()
 
   const target = projectId ?? undefined
 
@@ -493,18 +503,18 @@ export function GitLabPanel({ onClose, projectId, jiraIssues }: {
     try {
       if (tab === 'issues') setIssues(await api.gitlabIssues(state, search, target))
       else setMrs(await api.gitlabMrs(state, search, target))
-    } catch (e) { toast(e instanceof Error ? e.message : '加载失败', 'error') } finally { setBusy(false) }
+    } catch (e) { toast(e instanceof Error ? e.message : t('loadFailed'), 'error') } finally { setBusy(false) }
   }, [tab, state, search, projectId, toast])
 
   React.useEffect(() => { void load() }, [load])
 
   const closeIssue = async (iid: number): Promise<void> => {
-    if (!(await confirm({ title: '关闭议题', message: `关闭议题 !${iid}？`, confirmLabel: '关闭', danger: true }))) return
-    try { await api.gitlabCloseIssue(iid, target); void load() } catch (e) { toast(e instanceof Error ? e.message : '关闭失败', 'error') }
+    if (!(await confirm({ title: t('closeIssueTitle'), message: t('closeIssueMsg', { iid }), confirmLabel: t('close'), danger: true }))) return
+    try { await api.gitlabCloseIssue(iid, target); void load() } catch (e) { toast(e instanceof Error ? e.message : t('closeFailed'), 'error') }
   }
   const closeMr = async (iid: number): Promise<void> => {
-    if (!(await confirm({ title: '关闭合并请求', message: `关闭 MR !${iid}？`, confirmLabel: '关闭', danger: true }))) return
-    try { await api.gitlabCloseMr(iid, target); void load() } catch (e) { toast(e instanceof Error ? e.message : '关闭失败', 'error') }
+    if (!(await confirm({ title: t('closeMrTitle'), message: t('closeMrMsg', { iid }), confirmLabel: t('close'), danger: true }))) return
+    try { await api.gitlabCloseMr(iid, target); void load() } catch (e) { toast(e instanceof Error ? e.message : t('closeFailed'), 'error') }
   }
 
   // Prefill the create-issue title/description from the selected Jira issues.
@@ -526,8 +536,8 @@ export function GitLabPanel({ onClose, projectId, jiraIssues }: {
     try {
       await api.gitlabCreateIssueFromJira(jiras, createTitle || undefined, createDesc || undefined, target)
       setCreateIssueOpen(false); setSelectedJira(new Set()); setCreateTitle(''); setCreateDesc('')
-      toast('已创建 GitLab 议题'); void load()
-    } catch (e) { toast(e instanceof Error ? e.message : '创建失败', 'error') } finally { setCreatingIssue(false) }
+      toast(t('gitlabIssueCreated')); void load()
+    } catch (e) { toast(e instanceof Error ? e.message : t('createFailed'), 'error') } finally { setCreatingIssue(false) }
   }
 
   const linkJira = async (): Promise<void> => {
@@ -538,16 +548,16 @@ export function GitLabPanel({ onClose, projectId, jiraIssues }: {
     try {
       await api.gitlabLinkJira(linkJiraIssue, keys, target)
       setLinkJiraIssue(null); setLinkJiraSelected(new Set())
-      toast('已链接 Jira'); void load()
-    } catch (e) { toast(e instanceof Error ? e.message : '链接失败', 'error') } finally { setSavingLink(false) }
+      toast(t('jiraLinked')); void load()
+    } catch (e) { toast(e instanceof Error ? e.message : t('linkFailed'), 'error') } finally { setSavingLink(false) }
   }
 
   const unlinkJira = async (iid: number, key: string): Promise<void> => {
-    try { await api.gitlabUnlinkJira(iid, [key], target); void load() } catch (e) { toast(e instanceof Error ? e.message : '取消链接失败', 'error') }
+    try { await api.gitlabUnlinkJira(iid, [key], target); void load() } catch (e) { toast(e instanceof Error ? e.message : t('unlinkFailed'), 'error') }
   }
 
   const linkIssueToMr = async (iid: number, mrIid: number): Promise<void> => {
-    try { await api.gitlabLinkIssueToMr(iid, mrIid, target); setLinkMrIssue(null); toast('已关联'); void load() } catch (e) { toast(e instanceof Error ? e.message : '关联失败', 'error') }
+    try { await api.gitlabLinkIssueToMr(iid, mrIid, target); setLinkMrIssue(null); toast(t('linked')); void load() } catch (e) { toast(e instanceof Error ? e.message : t('linkFailed'), 'error') }
   }
 
   // Load the project's branches when the create-MR modal opens.
@@ -571,13 +581,13 @@ export function GitLabPanel({ onClose, projectId, jiraIssues }: {
   const createMr = async (): Promise<void> => {
     const branch = mrTarget || mainBranch
     const source = mrSourceMode === 'new' ? (mrNewBranch || primaryBranchName) : mrSource
-    if (!source || !branch) { toast('请选择源分支', 'error'); return }
+    if (!source || !branch) { toast(t('branchRequired'), 'error'); return }
     setCreatingMr(true)
     try {
       await api.gitlabCreateMr({ sourceBranch: source, targetBranch: branch, title: mrTitle || source, issueIids: [...mrIssueIids], createBranch: mrSourceMode === 'new' }, target)
       setCreateMrOpen(false); setMrSource(''); setMrNewBranch(''); setMrTitle(''); setMrIssueIids(new Set()); setMrSourceMode('existing')
-      toast('已创建合并请求'); void load()
-    } catch (e) { toast(e instanceof Error ? e.message : '创建 MR 失败', 'error') } finally { setCreatingMr(false) }
+      toast(t('mrCreated')); void load()
+    } catch (e) { toast(e instanceof Error ? e.message : t('mrCreateFailed'), 'error') } finally { setCreatingMr(false) }
   }
 
   const toggleSet = <T,>(set: Set<T>, item: T, on: boolean): Set<T> => {
@@ -589,76 +599,76 @@ export function GitLabPanel({ onClose, projectId, jiraIssues }: {
   const stateOptions: GitlabListState[] = tab === 'issues' ? ['opened', 'closed', 'all'] : ['opened', 'closed', 'merged', 'all']
 
   return (
-    <Modal title="GitLab 工作区" icon={<IcGitlab size={14} />} onClose={onClose} width="xl">
+    <Modal title={t('gitlabTitle')} icon={<IcGitlab size={14} />} onClose={onClose} width="xl">
       {/* 面板正文：标签页 + 工具栏固定，只有下方列表滚动 */}
       <div className="kb-gitlab">
         <div className="kb-tabs kb-tabs--with-actions">
-          <button className={tab === 'issues' ? 'kb-tab kb-tab--on' : 'kb-tab'} role="tab" aria-selected={tab === 'issues'} onClick={() => setTab('issues')}>议题</button>
-          <button className={tab === 'mrs' ? 'kb-tab kb-tab--on' : 'kb-tab'} role="tab" aria-selected={tab === 'mrs'} onClick={() => setTab('mrs')}>合并请求</button>
+          <button className={tab === 'issues' ? 'kb-tab kb-tab--on' : 'kb-tab'} role="tab" aria-selected={tab === 'issues'} onClick={() => setTab('issues')}>{t('tabIssues')}</button>
+          <button className={tab === 'mrs' ? 'kb-tab kb-tab--on' : 'kb-tab'} role="tab" aria-selected={tab === 'mrs'} onClick={() => setTab('mrs')}>{t('tabMrs')}</button>
           <span className="kb-tabs__spacer" />
           <button className="kb-btn kb-btn--sm" disabled={!jiraIssues.length} onClick={() => { setCreateIssueOpen(true); setSelectedJira(new Set()); setCreateTitle(''); setCreateDesc('') }}>
-            <IcPlus size={13} />从 Jira 创建议题
+            <IcPlus size={13} />{t('createFromJira')}
           </button>
           <button className="kb-btn kb-btn--sm" onClick={() => { setCreateMrOpen(true); setMrSourceMode('existing'); setMrSource(''); setMrNewBranch(''); setMrTitle(''); setMrIssueIids(new Set()) }}>
-            <IcBranch size={13} />创建合并请求
+            <IcBranch size={13} />{t('createMr')}
           </button>
         </div>
         <div className="kb-gitlab__toolbar">
-          <SegToggle value={state} onChange={setState} options={stateOptions.map((s) => ({ value: s, label: STATE_LABELS[s] }))} label="状态过滤" />
+          <SegToggle value={state} onChange={setState} options={stateOptions.map((s) => ({ value: s, label: t(STATE_LABELS[s]) }))} label={t('stateAll')} />
           <div className="kb-gitlab__search">
             <div className="kb-search">
               <span className="kb-search__icon"><IcSearch size={13} /></span>
-              <input className="kb-input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜索…" aria-label="搜索 GitLab 条目" />
+              <input className="kb-input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('searchGitlab')} aria-label={t('searchGitlab')} />
             </div>
           </div>
-          <button className="kb-btn kb-btn--ghost" onClick={() => void load()}><IcSync size={13} />刷新</button>
-          {projectUrl ? <a className="kb-btn kb-btn--ghost" href={projectUrl} target="_blank" rel="noreferrer noopener"><IcExternalLink size={12} />打开 GitLab</a> : null}
+          <button className="kb-btn kb-btn--ghost" onClick={() => void load()}><IcSync size={13} />{t('refresh')}</button>
+          {projectUrl ? <a className="kb-btn kb-btn--ghost" href={projectUrl} target="_blank" rel="noreferrer noopener"><IcExternalLink size={12} />{t('openGitlab')}</a> : null}
         </div>
         <div className="kb-gitlab__list-wrap">
           {busy ? <SkeletonCards cards={4} /> : tab === 'issues' ? (
             <div className="kb-gitlab__list">
-              {issues.length === 0 ? <EmptyState title="暂无议题" hint="换个状态过滤试试，或从 Jira 创建一个。" /> : issues.map((i) => (
+              {issues.length === 0 ? <EmptyState title={t('noIssues')} hint={t('noIssuesHint')} /> : issues.map((i) => (
                 <div className="kb-card" key={i.iid}>
                   <div className="kb-card__top">
                     <span className="kb-card__key">#{i.iid}</span>
                     <span className={stateChipClass(i.state)}>{stateLabel(i.state)}</span>
                     <span className="kb-card__copy">
-                      <CopyButton issue={{ key: `#${i.iid}`, summary: i.title, description: i.description }} label="复制" stopPropagation />
-                      {i.webUrl ? <ExtLink href={i.webUrl} label={`在 GitLab 中打开 #${i.iid}`} /> : null}
+                      <CopyButton issue={{ key: `#${i.iid}`, summary: i.title, description: i.description }} label={t('copyAria', { key: `#${i.iid}` })} stopPropagation />
+                      {i.webUrl ? <ExtLink href={i.webUrl} label={t('openGitlab') + ` #${i.iid}`} /> : null}
                     </span>
                   </div>
                   <div className="kb-card__summary">{i.title}</div>
                   {i.jiraKeys.length > 0 ? (
                     <div className="kb-card__tags">{i.jiraKeys.map((k) => (
                       <span className="kb-tag" key={k}>{k}
-                        <button type="button" className="kb-tag__x" title="取消链接" aria-label={`取消链接 ${k}`} onClick={() => void unlinkJira(i.iid, k)}><IcClose size={10} /></button>
+                        <button type="button" className="kb-tag__x" title={t('unlinkAria', { key: k })} aria-label={t('unlinkAria', { key: k })} onClick={() => void unlinkJira(i.iid, k)}><IcClose size={10} /></button>
                       </span>
                     ))}</div>
                   ) : null}
                   {i.mrIid ? <div className="kb-card__assignee"><IcBranch size={12} /> MR !{i.mrIid}</div> : null}
                   <div className="kb-gitlab__actions">
-                    <button className="kb-btn kb-btn--ghost kb-btn--sm" onClick={() => { setLinkJiraIssue(i.iid); setLinkJiraSelected(new Set()) }}><IcLink size={12} />链接 Jira</button>
-                    <button className="kb-btn kb-btn--ghost kb-btn--sm" onClick={() => setLinkMrIssue(i.iid)}><IcBranch size={12} />关联 MR</button>
-                    {i.state === 'opened' ? <button className="kb-btn kb-btn--ghost kb-btn--sm" onClick={() => void closeIssue(i.iid)}><IcClose size={12} />关闭</button> : null}
+                    <button className="kb-btn kb-btn--ghost kb-btn--sm" onClick={() => { setLinkJiraIssue(i.iid); setLinkJiraSelected(new Set()) }}><IcLink size={12} />{t('linkJira')}</button>
+                    <button className="kb-btn kb-btn--ghost kb-btn--sm" onClick={() => setLinkMrIssue(i.iid)}><IcBranch size={12} />{t('linkMr')}</button>
+                    {i.state === 'opened' ? <button className="kb-btn kb-btn--ghost kb-btn--sm" onClick={() => void closeIssue(i.iid)}><IcClose size={12} />{t('close')}</button> : null}
                   </div>
                 </div>
               ))}
             </div>
           ) : (
             <div className="kb-gitlab__list">
-              {mrs.length === 0 ? <EmptyState title="暂无合并请求" hint="换个状态过滤试试，或创建一个合并请求。" /> : mrs.map((m) => (
+              {mrs.length === 0 ? <EmptyState title={t('noMrs')} hint={t('noMrsHint')} /> : mrs.map((m) => (
                 <div className="kb-card" key={m.iid}>
                   <div className="kb-card__top">
                     <span className="kb-card__key">!{m.iid}</span>
                     <span className={stateChipClass(m.state)}>{stateLabel(m.state)}</span>
-                    {m.webUrl ? <span className="kb-card__copy"><ExtLink href={m.webUrl} label={`在 GitLab 中打开 !${m.iid}`} /></span> : null}
+                    {m.webUrl ? <span className="kb-card__copy"><ExtLink href={m.webUrl} label={t('openGitlab') + ` !${m.iid}`} /></span> : null}
                   </div>
                   <div className="kb-card__summary">{m.title}</div>
                   {m.sourceBranch ? <div className="kb-gitlab__branchrow"><IcBranch size={12} /><span>{m.sourceBranch} → {m.targetBranch ?? ''}</span></div> : null}
                   {m.jiraKeys.length > 0 ? <div className="kb-card__tags">{m.jiraKeys.map((k) => <span className="kb-tag" key={k}>{k}</span>)}</div> : null}
                   <div className="kb-gitlab__actions">
                     {m.issueIids?.length ? <span className="kb-note">#{m.issueIids.join(', #')}</span> : null}
-                    {m.state === 'opened' ? <button className="kb-btn kb-btn--ghost kb-btn--sm" onClick={() => void closeMr(m.iid)}><IcClose size={12} />关闭</button> : null}
+                    {m.state === 'opened' ? <button className="kb-btn kb-btn--ghost kb-btn--sm" onClick={() => void closeMr(m.iid)}><IcClose size={12} />{t('close')}</button> : null}
                   </div>
                 </div>
               ))}
@@ -669,11 +679,11 @@ export function GitLabPanel({ onClose, projectId, jiraIssues }: {
 
       {/* 从 Jira 创建议题 */}
       {createIssueOpen ? (
-        <Modal title="从 Jira 创建议题" icon={<IcPlus size={14} />} onClose={() => setCreateIssueOpen(false)} width="md"
+        <Modal title={t('createIssueFromJiraTitle')} icon={<IcPlus size={14} />} onClose={() => setCreateIssueOpen(false)} width="md"
           footer={<>
             <button className="kb-btn" onClick={() => setCreateIssueOpen(false)}>取消</button>
             <button className="kb-btn kb-btn--primary" disabled={creatingIssue || selectedJira.size === 0} onClick={() => void createIssue()}>
-              {creatingIssue ? '创建中…' : selectedJira.size > 0 ? `创建（${selectedJira.size}）` : '创建'}
+              {creatingIssue ? t('creating') : selectedJira.size > 0 ? t('createCount', { n: selectedJira.size }) : t('create')}
             </button>
           </>}>
           <div className="kb-form">
@@ -683,21 +693,21 @@ export function GitLabPanel({ onClose, projectId, jiraIssues }: {
                 options={jiraIssues.map((i) => ({ value: i.key, label: `${i.key} · ${i.summary}` }))}
                 selected={selectedJira}
                 onToggle={(v, on) => setSelectedJira((s) => toggleSet(s, v, on))}
-                filterPlaceholder="筛选 Jira 事项…" />
+                filterPlaceholder={t('filterJiraPlaceholder')} />
             )}
-            <Field label="标题"><input className="kb-input" value={createTitle} placeholder="由所选 Jira 事项自动生成" onChange={(e) => setCreateTitle(e.target.value)} /></Field>
-            <Field label="描述"><textarea className="kb-input" rows={4} value={createDesc} placeholder="由所选 Jira 事项自动生成" onChange={(e) => setCreateDesc(e.target.value)} /></Field>
+            <Field label={t('titleLabel')}><input className="kb-input" value={createTitle} placeholder={t('titleAutoPlaceholder')} onChange={(e) => setCreateTitle(e.target.value)} /></Field>
+            <Field label={t('descriptionLabel')}><textarea className="kb-input" rows={4} value={createDesc} placeholder={t('titleAutoPlaceholder')} onChange={(e) => setCreateDesc(e.target.value)} /></Field>
           </div>
         </Modal>
       ) : null}
 
       {/* 链接 Jira 到现有 GitLab issue */}
       {linkJiraIssue != null ? (
-        <Modal title={`链接 Jira · !${linkJiraIssue}`} icon={<IcLink size={14} />} onClose={() => setLinkJiraIssue(null)} width="md"
+        <Modal title={t('linkJiraTitle', { iid: linkJiraIssue })} icon={<IcLink size={14} />} onClose={() => setLinkJiraIssue(null)} width="md"
           footer={<>
             <button className="kb-btn" onClick={() => setLinkJiraIssue(null)}>取消</button>
             <button className="kb-btn kb-btn--primary" disabled={savingLink || linkJiraSelected.size === 0} onClick={() => void linkJira()}>
-              {savingLink ? '链接中…' : linkJiraSelected.size > 0 ? `链接（${linkJiraSelected.size}）` : '链接'}
+              {savingLink ? t('linking') : linkJiraSelected.size > 0 ? t('linkCount', { n: linkJiraSelected.size }) : t('link')}
             </button>
           </>}>
           <div className="kb-form">
@@ -707,7 +717,7 @@ export function GitLabPanel({ onClose, projectId, jiraIssues }: {
                 options={jiraIssues.map((i) => ({ value: i.key, label: `${i.key} · ${i.summary}` }))}
                 selected={linkJiraSelected}
                 onToggle={(v, on) => setLinkJiraSelected((s) => toggleSet(s, v, on))}
-                filterPlaceholder="筛选 Jira 事项…" />
+                filterPlaceholder={t('filterJiraPlaceholder')} />
             )}
           </div>
         </Modal>
@@ -715,26 +725,26 @@ export function GitLabPanel({ onClose, projectId, jiraIssues }: {
 
       {/* 创建合并请求 */}
       {createMrOpen ? (
-        <Modal title="创建合并请求" icon={<IcBranch size={14} />} onClose={() => setCreateMrOpen(false)} width="md"
+        <Modal title={t('createMrTitle')} icon={<IcBranch size={14} />} onClose={() => setCreateMrOpen(false)} width="md"
           footer={<>
             <button className="kb-btn" onClick={() => setCreateMrOpen(false)}>取消</button>
-            <button className="kb-btn kb-btn--primary" disabled={creatingMr || (mrSourceMode === 'existing' ? !mrSource : !(mrNewBranch || primaryBranchName))} onClick={() => void createMr()}>{creatingMr ? '创建中…' : '创建'}</button>
+            <button className="kb-btn kb-btn--primary" disabled={creatingMr || (mrSourceMode === 'existing' ? !mrSource : !(mrNewBranch || primaryBranchName))} onClick={() => void createMr()}>{creatingMr ? t('creating') : t('create')}</button>
           </>}>
           <div className="kb-form">
-            <SegToggle value={mrSourceMode} onChange={setMrSourceMode} label="源分支方式"
-              options={[{ value: 'existing', label: '现有分支' }, { value: 'new', label: '新建分支' }]} />
+            <SegToggle value={mrSourceMode} onChange={setMrSourceMode} label={t('sourceModeAria')}
+              options={[{ value: 'existing', label: t('existingBranch') }, { value: 'new', label: t('newBranch') }]} />
             {mrSourceMode === 'existing' ? (
-              <Field label="源分支">
+              <Field label={t('sourceBranch')}>
                 <SelectControl value={mrSource} onChange={setMrSource}
-                  options={[{ value: '', label: '选择分支' }, ...mrBranches.map((b) => ({ value: b, label: b }))]} />
+                  options={[{ value: '', label: t('selectBranch') }, ...mrBranches.map((b) => ({ value: b, label: b }))]} />
               </Field>
             ) : (
-              <Field label="新分支名">
-                <input className="kb-input" value={mrNewBranch} onChange={(e) => setMrNewBranch(e.target.value)} placeholder={primaryBranchName || 'new-branch'} />
-                <span className="kb-note">留空使用建议名（由关联议题或标题自动生成）</span>
+              <Field label={t('newBranchName')}>
+                <input className="kb-input" value={mrNewBranch} onChange={(e) => setMrNewBranch(e.target.value)} placeholder={primaryBranchName || t('newBranchFallback')} />
+                <span className="kb-note">{t('newBranchHint')}</span>
               </Field>
             )}
-            <Field label="目标分支">
+            <Field label={t('targetBranch')}>
               <SelectControl value={mrTarget || mainBranch} onChange={setMrTarget}
                 options={(mrBranches.length === 0 ? ['main'] : mrBranches).map((b) => ({ value: b, label: b }))} />
             </Field>
@@ -744,14 +754,14 @@ export function GitLabPanel({ onClose, projectId, jiraIssues }: {
             {mrSourceMode === 'new' ? (
               <div className="kb-gitlab__branchrow kb-gitlab__branchrow--preview"><IcBranch size={12} /><span>{mrNewBranch || primaryBranchName || 'new-branch'} → {mrTarget || mainBranch}</span></div>
             ) : null}
-            <Field label="标题（可选）"><input className="kb-input" value={mrTitle} placeholder="留空使用源分支名" onChange={(e) => setMrTitle(e.target.value)} /></Field>
-            <Field label="关联议题（可选）">
+            <Field label={t('mrTitleLabel')}><input className="kb-input" value={mrTitle} placeholder={t('mrTitlePlaceholder')} onChange={(e) => setMrTitle(e.target.value)} /></Field>
+            <Field label={t('linkedIssuesLabel')}>
               {unlinkedIssues.length ? (
                 <SelectableList
                   options={unlinkedIssues.map((i) => ({ value: String(i.iid), label: `#${i.iid} · ${i.title}` }))}
                   selected={new Set([...mrIssueIids].map(String))}
                   onToggle={(v, on) => setMrIssueIids((s) => toggleSet(s, Number(v), on))}
-                  filterPlaceholder="筛选议题…" />
+                  filterPlaceholder={t('filterIssuesPlaceholder')} />
               ) : <span className="kb-note">没有可关联的议题</span>}
             </Field>
           </div>
@@ -760,7 +770,7 @@ export function GitLabPanel({ onClose, projectId, jiraIssues }: {
 
       {/* 关联 issue 到现有 MR */}
       {linkMrIssue != null ? (
-        <Modal title={`关联议题 !${linkMrIssue} 到合并请求`} icon={<IcBranch size={14} />} onClose={() => setLinkMrIssue(null)} width="md">
+        <Modal title={t('linkIssueToMrTitle', { iid: linkMrIssue })} icon={<IcBranch size={14} />} onClose={() => setLinkMrIssue(null)} width="md">
           <div className="kb-form">
             <p className="kb-note">选择要关联的合并请求：</p>
             {mrs.length === 0 ? <p className="kb-note">暂无合并请求</p> : (
@@ -798,6 +808,7 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession }: {
   const toast = useToast()
   const confirm = useConfirm()
   const choice = useChoice()
+  const t = useT()
   const [sending, setSending] = React.useState(false)
 
   // 丢进会话分析：确认发送位置（当前会话 / 新建会话）后经官方 prompt 入口发送。
@@ -805,11 +816,11 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession }: {
   const sendToSession = async (): Promise<void> => {
     const imageCount = (detail?.attachments ?? []).filter((a) => (a.mimeType ?? '').startsWith('image/')).length
     const target = await choice({
-      title: '发送到会话分析',
-      message: `把 ${issueKey}${imageCount > 0 ? `（含 ${imageCount} 张图片）` : ''} 交给会话中的 AI 分析（只分析、不修改）。选择发送位置：`,
+      title: t('sendTitle'),
+      message: imageCount > 0 ? t('sendMsg', { key: issueKey, n: imageCount }) : t('sendMsgNoImg', { key: issueKey }),
       options: [
-        { value: 'current', label: '当前会话', primary: true },
-        { value: 'new', label: '在当前工作区新建会话' },
+        { value: 'current', label: t('sendCurrent'), primary: true },
+        { value: 'new', label: t('sendNew') },
       ],
     })
     if (!target || !onSendToSession) return
@@ -818,10 +829,10 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession }: {
     try {
       const images = await gatherIssueImages(detail)
       await onSendToSession(issueKey, where, images)
-      if (target === 'current') toast(images.length > 0 ? `已发送到当前会话（附 ${images.length} 张图片）` : '已发送到当前会话')
+      if (target === 'current') toast(images.length > 0 ? t('sentToast', { n: images.length }) : t('sentToastNoImg'))
       // 'new' 时发送成功后面板会自动关闭，用户直接看到新会话，无需 toast
     } catch (e) {
-      toast(e instanceof Error ? e.message : '发送失败', 'error')
+      toast(e instanceof Error ? e.message : t('sendFailed'), 'error')
     } finally {
       setSending(false)
     }
@@ -859,17 +870,17 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession }: {
 
   React.useEffect(() => { let cancelled = false; api.getIssueDetail(issueKey).then((d) => { if (!cancelled) setDetail(d) }).catch(() => { if (!cancelled) setDetail(null) }); return () => { cancelled = true } }, [issueKey])
 
-  const move = async (t: JiraTransitionOption): Promise<void> => {
+  const move = async (transition: JiraTransitionOption): Promise<void> => {
     setBusy(true)
-    try { await api.transitionIssue(issueKey, t.id); await onChanged(); await loadDetail() }
-    catch (e) { toast(e instanceof Error ? e.message : '流转失败', 'error') }
+    try { await api.transitionIssue(issueKey, transition.id); await onChanged(); await loadDetail() }
+    catch (e) { toast(e instanceof Error ? e.message : t('loadFailed'), 'error') }
     finally { setBusy(false) }
   }
   const addComment = async (): Promise<void> => {
     if (!comment.trim()) return
     setBusy(true)
     try { await api.addComment(issueKey, comment); setComment(''); setUploaded([]); await loadDetail() }
-    catch (e) { toast(e instanceof Error ? e.message : '评论失败', 'error') }
+    catch (e) { toast(e instanceof Error ? e.message : t('commentFailed'), 'error') }
     finally { setBusy(false) }
   }
   const handleUpload = async (file: File): Promise<void> => {
@@ -881,7 +892,7 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession }: {
       const token = `!${res.filename}|thumbnail!`
       setComment((c) => (c ? `${c}\n${token}` : token))
       setUploaded((l) => [...l, res.filename])
-    } catch (e) { toast(e instanceof Error ? e.message : '上传失败', 'error') } finally { setUploading(false) }
+    } catch (e) { toast(e instanceof Error ? e.message : t('uploadFailed'), 'error') } finally { setUploading(false) }
   }
   // Paste an image (Ctrl+V) into the composer → upload + insert a Jira reference.
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>): void => {
@@ -907,16 +918,16 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession }: {
     }
   }
   const remove = async (): Promise<void> => {
-    if (!(await confirm({ title: '删除 issue', message: `删除 ${issueKey}？此操作不可撤销。`, confirmLabel: '删除', danger: true }))) return
+    if (!(await confirm({ title: t('deleteIssueTitle'), message: t('deleteIssueMsg', { key: issueKey }), confirmLabel: t('delete'), danger: true }))) return
     try { await api.deleteIssue(issueKey); await onChanged(); onClose() }
-    catch (e) { toast(e instanceof Error ? e.message : '删除失败', 'error') }
+    catch (e) { toast(e instanceof Error ? e.message : t('deleteFailed'), 'error') }
   }
 
   return (
     <Modal title={detail ? `${detail.key} · ${detail.summary}` : issueKey} onClose={onClose} width="xl"
       footer={detail ? (
         <>
-          {onSendToSession ? <button className="kb-btn kb-btn--ghost" disabled={sending} onClick={() => void sendToSession()}><IcSend size={12} />{sending ? '发送中…' : '丢进会话分析'}</button> : null}
+          {onSendToSession ? <button className="kb-btn kb-btn--ghost" disabled={sending} onClick={() => void sendToSession()}><IcSend size={12} />{sending ? t('sending') : t('sendToSession')}</button> : null}
           {detail.url ? <a className="kb-btn kb-btn--ghost" href={detail.url} target="_blank" rel="noreferrer noopener"><IcExternalLink size={12} />在 Jira 中打开</a> : null}
           <span className="kb-modal__foot-spacer" />
           {detail.canDelete ? <button className="kb-btn kb-btn--danger" onClick={() => void remove()}><IcTrash size={12} />删除</button> : null}
@@ -927,9 +938,9 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession }: {
       {!detail ? <SkeletonDetail /> : (
         <div className="kb-detail" ref={contentRef}>
           <div className="kb-detail__meta">
-            <span className="kb-detail__chip"><StatusDot category={detail.status.category} name={`状态: ${detail.status.name}`} /></span>
-            {detail.issueType ? <span className="kb-detail__chip">类型: {detail.issueType}</span> : null}
-            {detail.priority ? <span className={`kb-detail__chip ${priorityClsForChip(detail.priority)}`}>优先级: {detail.priority}</span> : null}
+            <span className="kb-detail__chip"><StatusDot category={detail.status.category} name={t('statusChip', { name: detail.status.name })} /></span>
+            {detail.issueType ? <span className="kb-detail__chip">{t('typeChip', { name: detail.issueType })}</span> : null}
+            {detail.priority ? <span className={`kb-detail__chip ${priorityClsForChip(detail.priority)}`}>{t('priorityChip', { name: detail.priority })}</span> : null}
             {detail.assignee ? <span className="kb-detail__chip"><Avatar name={detail.assignee} size="sm" />{detail.assignee}</span> : null}
           </div>
 
@@ -973,7 +984,7 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession }: {
                 <div className="kb-comment" key={c.id}>
                   <span className="kb-comment__avatar"><Avatar name={c.author ?? '?'} size="lg" /></span>
                   <div className="kb-comment__wrap">
-                    <div className="kb-comment__meta">{c.author ?? '未知'}{c.created ? ` · ${formatDateTime(c.created)}` : ''}</div>
+                    <div className="kb-comment__meta">{c.author ?? t('unknownAuthor')}{c.created ? ` · ${formatDateTime(c.created)}` : ''}</div>
                     {c.bodyHtml
                       ? <div className="kb-detail__html kb-comment__body" dangerouslySetInnerHTML={{ __html: c.bodyHtml }} />
                       : <div className="kb-comment__body">{c.body}</div>}
@@ -985,13 +996,13 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession }: {
           </div>
 
           <div className="kb-detail__add">
-            <textarea className="kb-input" rows={2} value={comment} onChange={(e) => setComment(e.target.value)} onPaste={handlePaste} placeholder="写评论…（可粘贴图片）" aria-label="评论内容" />
+            <textarea className="kb-input" rows={2} value={comment} onChange={(e) => setComment(e.target.value)} onPaste={handlePaste} placeholder={t('commentPlaceholder')} aria-label={t('commentAria')} />
             {uploaded.length > 0 ? (
               <div className="kb-composer__files">
                 {uploaded.map((f) => (
                   <span key={f} className="kb-composer__file">
                     <IcImage size={11} />{f}
-                    <button type="button" className="kb-tag__x" aria-label={`移除附件 ${f}`} onClick={() => setUploaded((l) => l.filter((x) => x !== f))}><IcClose size={10} /></button>
+                    <button type="button" className="kb-tag__x" aria-label={t('removeAttachAria', { name: f })} onClick={() => setUploaded((l) => l.filter((x) => x !== f))}><IcClose size={10} /></button>
                   </span>
                 ))}
               </div>
@@ -1000,7 +1011,7 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession }: {
               <div className="kb-composer__left">
                 <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleUpload(f); e.target.value = '' }} />
                 <button className="kb-btn kb-btn--ghost kb-btn--sm" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
-                  {uploading ? <IcSync size={12} className="kb-spin" /> : <IcImage size={12} />}{uploading ? '上传中…' : '图片'}
+                  {uploading ? <IcSync size={12} className="kb-spin" /> : <IcImage size={12} />}{uploading ? t('uploading') : t('imageBtn')}
                 </button>
                 <span className="kb-note">粘贴或选择图片，自动上传并插入引用</span>
               </div>
@@ -1105,6 +1116,7 @@ async function gatherIssueImages(detail: BoardIssueDetail | null): Promise<Promp
 export function Lightbox({ images, index, onClose, onNavigate }: {
   images: string[]; index: number; onClose: () => void; onNavigate: (i: number) => void
 }): React.ReactElement {
+  const t = useT()
   const closeRef = React.useRef<HTMLButtonElement>(null)
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -1119,10 +1131,10 @@ export function Lightbox({ images, index, onClose, onNavigate }: {
 
   return (
     <div className="kb-lightbox" onClick={onClose}>
-      <button type="button" className="kb-lightbox__nav kb-lightbox__prev" aria-label="上一张" onClick={(e) => { e.stopPropagation(); if (index > 0) onNavigate(index - 1) }}><IcChevronLeft size={20} /></button>
+      <button type="button" className="kb-lightbox__nav kb-lightbox__prev" aria-label={t('prevImage')} onClick={(e) => { e.stopPropagation(); if (index > 0) onNavigate(index - 1) }}><IcChevronLeft size={20} /></button>
       {images[index] ? <img className="kb-lightbox__img" src={images[index]} alt="" onClick={(e) => e.stopPropagation()} /> : null}
-      <button type="button" className="kb-lightbox__nav kb-lightbox__next" aria-label="下一张" onClick={(e) => { e.stopPropagation(); if (index < images.length - 1) onNavigate(index + 1) }}><IcChevronRight size={20} /></button>
-      <button type="button" ref={closeRef} className="kb-lightbox__close" aria-label="关闭" onClick={(e) => { e.stopPropagation(); onClose() }}><IcClose size={18} /></button>
+      <button type="button" className="kb-lightbox__nav kb-lightbox__next" aria-label={t('nextImage')} onClick={(e) => { e.stopPropagation(); if (index < images.length - 1) onNavigate(index + 1) }}><IcChevronRight size={20} /></button>
+      <button type="button" ref={closeRef} className="kb-lightbox__close" aria-label={t('close')} onClick={(e) => { e.stopPropagation(); onClose() }}><IcClose size={18} /></button>
       {images.length > 1 ? <div className="kb-lightbox__count">{index + 1} / {images.length}</div> : null}
     </div>
   )

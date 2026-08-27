@@ -10,6 +10,7 @@ import React from 'react'
 import type { BoardIssue, BoardStatus, StatusCategory } from './api.ts'
 import { IcChevronDown } from './icons.tsx'
 import { Avatar, SearchInput, StatusDot } from './primitives.tsx'
+import { useT } from './locales.ts'
 
 const CATEGORY_ORDER: StatusCategory[] = ['to do', 'in progress', 'done', 'unknown']
 
@@ -50,9 +51,10 @@ export function priorityLevelClass(priority: string | undefined | null): string 
 export function BoardToolbar({ search, onSearch, meta }: {
   search: string; onSearch: (v: string) => void; meta: string
 }): React.ReactElement {
+  const t = useT()
   return (
     <div className="kb-toolbar">
-      <SearchInput value={search} onChange={onSearch} placeholder="搜索 key / 摘要 / 负责人…" />
+      <SearchInput value={search} onChange={onSearch} placeholder={t('searchPlaceholder')} />
       <span className="kb-toolbar__meta">{meta}</span>
     </div>
   )
@@ -64,6 +66,7 @@ export function IssueGroups({ issues, onOpen, search }: {
   issues: BoardIssue[]; onOpen: (key: string) => void; search: string
 }): React.ReactElement {
   const [collapsed, setCollapsed] = React.useState<ReadonlySet<string>>(new Set())
+  const t = useT()
   const columns = groupColumns(issues)
   const searching = search.trim() !== ''
 
@@ -95,7 +98,7 @@ export function IssueGroups({ issues, onOpen, search }: {
                 {visible.map((issue) => (
                   <Card key={issue.key} issue={issue} onOpen={onOpen} />
                 ))}
-                {visible.length === 0 ? <div className="kb-group__empty">{searching ? '无匹配的 issue' : '暂无 issue'}</div> : null}
+                {visible.length === 0 ? <div className="kb-group__empty">{searching ? t('noMatchGroup') : t('emptyGroup')}</div> : null}
               </div>
             ) : null}
           </section>
@@ -106,12 +109,13 @@ export function IssueGroups({ issues, onOpen, search }: {
 }
 
 function Card({ issue, onOpen }: { issue: BoardIssue; onOpen: (key: string) => void }): React.ReactElement {
+  const t = useT()
   const priorityCls = priorityLevelClass(issue.priority)
   return (
     <div
       className="kb-card kb-card--clickable"
       role="button" tabIndex={0}
-      aria-label={`打开 ${issue.key} ${issue.summary}`}
+      aria-label={t('openCardAria', { key: issue.key, summary: issue.summary })}
       onClick={() => onOpen(issue.key)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(issue.key) } }}
     >

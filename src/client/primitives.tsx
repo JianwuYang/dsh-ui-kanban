@@ -8,6 +8,7 @@ import React from 'react'
 import type { StatusCategory } from './api.ts'
 import { buildIssueCopyText, copyText, type IssueCopyView } from './copy.ts'
 import { IcCheck, IcClose, IcCopy, IcSearch } from './icons.tsx'
+import { useT } from './locales.ts'
 
 /** ISO 时间按浏览器本地时区格式化为 yyyy-MM-dd HH:mm:ss（解析失败原样返回）。 */
 export function formatDateTime(iso: string | null | undefined): string {
@@ -56,17 +57,19 @@ export function StatusDot({ category, name }: { category?: string; name?: string
 
 /* ---------------- SearchInput ---------------- */
 
-export function SearchInput({ value, onChange, placeholder = '搜索…', className = '' }: {
+export function SearchInput({ value, onChange, placeholder, className = '' }: {
   value: string; onChange: (v: string) => void; placeholder?: string; className?: string
 }): React.ReactElement {
+  const t = useT()
+  const ph = placeholder ?? t('searchGitlab')
   return (
     <div className={`kb-search${className ? ` ${className}` : ''}`}>
       <span className="kb-search__icon"><IcSearch size={13} /></span>
-      <input className="kb-input" type="text" value={value} placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)} aria-label={placeholder} />
+      <input className="kb-input" type="text" value={value} placeholder={ph}
+        onChange={(e) => onChange(e.target.value)} aria-label={ph} />
       {value ? (
         <span className="kb-search__clear">
-          <IconButton icon={<IcClose size={12} />} label="清除搜索" ghost onClick={() => onChange('')} />
+          <IconButton icon={<IcClose size={12} />} label={t('searchClear')} ghost onClick={() => onChange('')} />
         </span>
       ) : null}
     </div>
@@ -75,9 +78,10 @@ export function SearchInput({ value, onChange, placeholder = '搜索…', classN
 
 /* ---------------- CopyButton（issue 摘要拷贝） ---------------- */
 
-export function CopyButton({ issue, label = '复制', stopPropagation = false }: {
+export function CopyButton({ issue, label, stopPropagation = false }: {
   issue: IssueCopyView; label?: string; stopPropagation?: boolean
 }): React.ReactElement {
+  const t = useT()
   const [copied, setCopied] = React.useState(false)
   const doCopy = async (e?: React.MouseEvent): Promise<void> => {
     if (stopPropagation && e) e.stopPropagation()
@@ -88,8 +92,8 @@ export function CopyButton({ issue, label = '复制', stopPropagation = false }:
     }
   }
   return (
-    <button type="button" className="kb-btn kb-btn--ghost kb-btn--sm" onClick={(e) => void doCopy(e)} aria-label={`复制 ${issue.key}`}>
-      {copied ? <IcCheck size={11} /> : <IcCopy size={11} />}{copied ? '已复制' : label}
+    <button type="button" className="kb-btn kb-btn--ghost kb-btn--sm" onClick={(e) => void doCopy(e)} aria-label={t('copyAria', { key: issue.key })}>
+      {copied ? <IcCheck size={11} /> : <IcCopy size={11} />}{copied ? t('copied') : label ?? t('copy')}
     </button>
   )
 }

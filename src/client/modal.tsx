@@ -9,6 +9,7 @@
 
 import React from 'react'
 import { IcClose, IcWarning } from './icons.tsx'
+import { useT } from './locales.ts'
 
 /* ---------------- 模块级深度栈（Esc 只作用于最顶层弹窗） ---------------- */
 
@@ -37,6 +38,7 @@ export function Modal({ title, icon, children, footer, onClose, width = 'md' }: 
   const onCloseRef = React.useRef(onClose)
   onCloseRef.current = onClose
   const titleId = React.useId()
+  const t = useT()
 
   const requestClose = React.useCallback((): void => {
     if (closingRef.current) return
@@ -108,12 +110,12 @@ export function Modal({ title, icon, children, footer, onClose, width = 'md' }: 
         <div className="kb-modal__head">
           {icon ? <span className="kb-modal__head-icon">{icon}</span> : null}
           <h3 id={titleId}>{title}</h3>
-          <button type="button" className="kb-iconbtn kb-modal__close" onClick={requestClose} aria-label="关闭"><IcClose size={16} /></button>
+          <button type="button" className="kb-iconbtn kb-modal__close" onClick={requestClose} aria-label={t('close')}><IcClose size={16} /></button>
         </div>
         <div className="kb-modal__body">{children}</div>
         {footer === null ? null : footer !== undefined
           ? <div className="kb-modal__foot">{footer}</div>
-          : <div className="kb-modal__foot"><button type="button" className="kb-btn" onClick={requestClose}>关闭</button></div>}
+          : <div className="kb-modal__foot"><button type="button" className="kb-btn" onClick={requestClose}>{t('close')}</button></div>}
       </div>
     </div>
   )
@@ -202,6 +204,7 @@ export function useChoice(): (opts: ChoiceOptions) => Promise<string | null> {
 }
 
 function ConfirmDialog({ opts, onClose }: { opts: ConfirmOptions; onClose: (v: boolean) => void }): React.ReactElement {
+  const t = useT()
   return (
     <Modal
       title={opts.title}
@@ -209,8 +212,8 @@ function ConfirmDialog({ opts, onClose }: { opts: ConfirmOptions; onClose: (v: b
       width="md"
       onClose={() => onClose(false)}
       footer={<>
-        <button type="button" className="kb-btn" onClick={() => onClose(false)}>取消</button>
-        <button type="button" className={opts.danger ? 'kb-btn kb-btn--danger' : 'kb-btn kb-btn--primary'} data-autofocus onClick={() => onClose(true)}>{opts.confirmLabel ?? '确认'}</button>
+        <button type="button" className="kb-btn" onClick={() => onClose(false)}>{t('cancel')}</button>
+        <button type="button" className={opts.danger ? 'kb-btn kb-btn--danger' : 'kb-btn kb-btn--primary'} data-autofocus onClick={() => onClose(true)}>{opts.confirmLabel ?? t('confirm')}</button>
       </>}
     >
       <p className="kb-dialog__msg">{opts.message}</p>
@@ -220,6 +223,7 @@ function ConfirmDialog({ opts, onClose }: { opts: ConfirmOptions; onClose: (v: b
 
 function PromptDialog({ opts, onClose }: { opts: PromptOptions; onClose: (v: string | null) => void }): React.ReactElement {
   const [value, setValue] = React.useState(opts.initial ?? '')
+  const t = useT()
   const submit = (): void => { if (value.trim()) onClose(value) }
   return (
     <Modal
@@ -227,8 +231,8 @@ function PromptDialog({ opts, onClose }: { opts: PromptOptions; onClose: (v: str
       width="md"
       onClose={() => onClose(null)}
       footer={<>
-        <button type="button" className="kb-btn" onClick={() => onClose(null)}>取消</button>
-        <button type="button" className="kb-btn kb-btn--primary" disabled={!value.trim()} onClick={submit}>{opts.confirmLabel ?? '确定'}</button>
+        <button type="button" className="kb-btn" onClick={() => onClose(null)}>{t('cancel')}</button>
+        <button type="button" className="kb-btn kb-btn--primary" disabled={!value.trim()} onClick={submit}>{opts.confirmLabel ?? t('ok')}</button>
       </>}
     >
       <div className="kb-form">
@@ -246,13 +250,14 @@ function PromptDialog({ opts, onClose }: { opts: PromptOptions; onClose: (v: str
 }
 
 function ChoiceDialog({ opts, onClose }: { opts: ChoiceOptions; onClose: (v: string | null) => void }): React.ReactElement {
+  const t = useT()
   return (
     <Modal
       title={opts.title}
       width="md"
       onClose={() => onClose(null)}
       footer={<>
-        <button type="button" className="kb-btn" onClick={() => onClose(null)}>取消</button>
+        <button type="button" className="kb-btn" onClick={() => onClose(null)}>{t('cancel')}</button>
         {opts.options.map((o) => (
           <button key={o.value} type="button" className={o.primary ? 'kb-btn kb-btn--primary' : 'kb-btn'} onClick={() => onClose(o.value)}>{o.label}</button>
         ))}

@@ -11,14 +11,11 @@
  */
 
 import type { PromptContentPartLike, SessionFaceLike, SessionsServiceLike, WorkspacesServiceLike } from './types.ts'
+import { t } from './locales.ts'
 
-const ANALYSIS_INSTRUCTION = '请先调用 kanban-issue 工具查看该问题的最新详情（描述、评论、附件）。附件会带有下载 URL，但如果你无法查看图片内容（当前模型不支持图像输入），请明确说明这一限制，并基于可获得的文本信息分析；分析这个问题是什么情况、可能的原因与影响，并给出处理建议。只做分析和建议，不要修改任何内容。'
-
-const ANALYSIS_INSTRUCTION_WITH_IMAGES = '请先调用 kanban-issue 工具查看该问题的最新详情（描述、评论）。相关图片已作为附件随本条消息附上，请结合图片内容一起分析；分析这个问题是什么情况、可能的原因与影响，并给出处理建议。只做分析和建议，不要修改任何内容。'
-
-/** 生成发送给会话的分析提示词（带图片附件时提示结合图片分析）。 */
+/** 生成发送给会话的分析提示词（带图片附件时提示结合图片分析；跟随当前 UI 语言）。 */
 export function buildAnalysisPrompt(key: string, withImages: boolean): string {
-  return `请分析 Jira 问题 ${key}。${withImages ? ANALYSIS_INSTRUCTION_WITH_IMAGES : ANALYSIS_INSTRUCTION}`
+  return t(withImages ? 'sendPromptWithImages' : 'sendPrompt', { key })
 }
 
 /** 当前会话的 session face（root 作用域经 sessions.binding 取官方 face）。 */
@@ -43,9 +40,9 @@ export async function sendToCurrentSession(
   images?: PromptContentPartLike[],
 ): Promise<{ ok: boolean; error?: string }> {
   const face = currentSessionFace(sessions)
-  if (!face) return { ok: false, error: '没有可用的当前会话' }
+  if (!face) return { ok: false, error: t('sendFailed') }
   const result = await face.prompt(promptParts(key, images), 'queue')
-  if (!result.ok) return { ok: false, error: result.error?.message ?? '发送失败' }
+  if (!result.ok) return { ok: false, error: result.error?.message ?? t('sendFailed') }
   return { ok: true }
 }
 
@@ -56,15 +53,15 @@ export async function sendToNewSession(
   key: string,
   images?: PromptContentPartLike[],
 ): Promise<{ ok: boolean; error?: string }> {
-  if (!workspaces?.startSession) return { ok: false, error: 'workspaces 服务不可用，无法新建会话' }
+  if (!workspaces?.startSession) return { ok: false, error: t('sendFailed') }
   const before = sessions?.list.getSnapshot().current
   workspaces.startSession()
   const id = await waitForNewCurrent(sessions, before)
-  if (id === undefined) return { ok: false, error: '新建会话超时，请稍后重试' }
+  if (id === undefined) return { ok: false, error: t('sendFailed') }
   const face = sessions?.binding?.(id)?.session
-  if (!face) return { ok: false, error: '新会话尚未就绪' }
+  if (!face) return { ok: false, error: t('sendFailed') }
   const result = await face.prompt(promptParts(key, images), 'queue')
-  if (!result.ok) return { ok: false, error: result.error?.message ?? '发送失败' }
+  if (!result.ok) return { ok: false, error: result.error?.message ?? t('sendFailed') }
   return { ok: true }
 }
 
