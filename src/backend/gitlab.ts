@@ -127,6 +127,34 @@ export async function listGitlabIssues(
   return res.data as ProjectIssue[]
 }
 
+/** Fetch one MR by iid; `null` when it no longer exists (404). */
+export async function getGitlabMr(settings: GitLabSettings, iid: number): Promise<ProjectMr | null> {
+  const client = createClient(settings)
+  const base = projectBase(settings)
+  try {
+    const res = await client.get(`${base}/merge_requests/${iid}`)
+    return res.data as ProjectMr
+  } catch (err) {
+    const status = (err as { response?: { status?: number } })?.response?.status
+    if (status === 404) return null
+    throw err
+  }
+}
+
+/** Fetch one issue by iid; `null` when it no longer exists (404). */
+export async function getGitlabIssue(settings: GitLabSettings, iid: number): Promise<ProjectIssue | null> {
+  const client = createClient(settings)
+  const base = projectBase(settings)
+  try {
+    const res = await client.get(`${base}/issues/${iid}`)
+    return res.data as ProjectIssue
+  } catch (err) {
+    const status = (err as { response?: { status?: number } })?.response?.status
+    if (status === 404) return null
+    throw err
+  }
+}
+
 export async function listGitlabMrs(
   settings: GitLabSettings, state = 'all', search = '', page = 1, perPage = 50,
 ): Promise<ProjectMr[]> {

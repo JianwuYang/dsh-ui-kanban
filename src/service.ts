@@ -394,13 +394,44 @@ export class KanbanBackend {
     // bounded to the 100 most recent MRs.
     const autoLink = settings.mrAutoLink ?? true
     const refMr = new Map<number, number>()
+    const fetchedMrIids = new Set<number>()
     if (autoLink) {
       const mrs = await gitlab.listGitlabMrs(settings, 'all', '', 1, 100)
       for (const m of mrs) {
+        fetchedMrIids.add(m.iid)
         for (const iid of gitlab.parseMrIssueRefs(m.description, mrLinkKeywords(settings), settings.mrLinkMentions ?? true)) {
           if (!refMr.has(iid)) refMr.set(iid, m.iid)
         }
       }
+    }
+    // 清理死链接（两类对称）：
+    // 1) issueMr 指向已删除的 MR → 议题永远显示已关联，新建 MR 时无法再选它；
+    // 2) issueJira 的 key 对应已删除的议题 → 死 key 会继续把 Jira key 挂到 MR 上。
+    // 本次拉到的列表就是存活集合（跳过验证）；其余逐条查 GitLab，404 即删并落盘，
+    // 查询失败（网络等）保守保留。
+    const aliveIssueIids = new Set(raw.map((r) => r.iid))
+    const deadMrIids = new Set<number>()
+    const deadIssueIids = new Set<number>()
+    for (const mrIid of new Set(Object.values(links.issueMr))) {
+      const n = Number(mrIid)
+      if (fetchedMrIids.has(n)) continue
+      let exists = true
+      try { exists = await gitlab.getGitlabMr(settings, n) !== null } catch { exists = true }
+      if (!exists) deadMrIids.add(n)
+    }
+    for (const iid of Object.keys(links.issueJira)) {
+      const n = Number(iid)
+      if (aliveIssueIids.has(n)) continue
+      let exists = true
+      try { exists = await gitlab.getGitlabIssue(settings, n) !== null } catch { exists = true }
+      if (!exists) deadIssueIids.add(n)
+    }
+    if (deadMrIids.size > 0 || deadIssueIids.size > 0) {
+      for (const [iid, mr] of Object.entries(links.issueMr)) {
+        if (deadMrIids.has(Number(mr))) delete links.issueMr[iid]
+      }
+      for (const iid of deadIssueIids) delete links.issueJira[String(iid)]
+      await this.storeFor().writeLinks(project.id, links)
     }
     return raw.map((r) => ({
       id: r.id,
