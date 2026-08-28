@@ -16,6 +16,7 @@ import { Modal, useChoice, useConfirm } from './modal.tsx'
 import type { PromptContentPartLike } from './types.ts'
 import { Avatar, CopyButton, EmptyState, SegToggle, SkeletonCards, SkeletonDetail, StatusDot, formatDateTime } from './primitives.tsx'
 import { t as translate, useT, type TKey } from './locales.ts'
+import { statusAccent } from './colors.ts'
 import { useToast } from './toast.tsx'
 
 /* ------------------------------ 小部件 ------------------------------ */
@@ -970,7 +971,7 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession }: {
               <div className="kb-detail__transitions">
                 {detail.transitions.map((t) => (
                   <button className="kb-btn" key={t.id} disabled={busy} onClick={() => void move(t)}>
-                    <StatusDot category={t.toStatus.category} name={t.name} />
+                    <StatusDot category={t.toStatus.category} name={t.name} color={statusAccent(t.toStatus.color, t.name)} />
                   </button>
                 ))}
               </div>

@@ -16,6 +16,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { BOARD_TOOL_KEYS, DETAIL_TOOL_KEYS } from './constants.ts'
 import { Avatar, StatusDot, formatDateTime } from './primitives.tsx'
 import { t } from './locales.ts'
+import { typeTagStyle } from './colors.ts'
 import type { ToolCallBlockLike, ToolCallOwnerPropsLike } from './types.ts'
 
 /* ---- meta 结构（host 半边 presentationMeta 的输出） ---- */
@@ -90,7 +91,8 @@ function renderBoard(meta: BoardMeta): React.ReactElement {
 function renderColumn(col: BoardColumnLike, index: number): React.ReactElement {
   const issues = col.issues ?? []
   const category = col.category ?? 'unknown'
-  return React.createElement('div', { className: `kb-column kb-column--${category.replace(' ', '-')}`, key: index },
+  const accent = col.color ? colorVar(col.color) : undefined
+  return React.createElement('div', { className: `kb-column kb-column--${category.replace(' ', '-')}`, key: index, style: accent ? { '--kb-accent': accent } as Record<string, string> : undefined },
     React.createElement('div', { className: 'kb-column__head' },
       col.category
         ? React.createElement(StatusDot, { category: col.category, name: col.name })
@@ -126,7 +128,10 @@ function renderIssue(issue: BoardCardLike, index: number): React.ReactElement {
     React.createElement('div', { className: 'kb-card__key' }, issue.key ?? ''),
     React.createElement('div', { className: 'kb-card__summary' }, issue.summary ?? ''),
     tags.length > 0
-      ? React.createElement('div', { className: 'kb-card__tags' }, tags.map((t, j) => React.createElement('span', { className: 'kb-tag', key: j }, t)))
+      ? React.createElement('div', { className: 'kb-card__tags' }, tags.map((tag, j) => {
+          const tinted = tag === issue.issueType && issue.issueType ? typeTagStyle(issue.issueType) : undefined
+          return React.createElement('span', { className: 'kb-tag', key: j, style: tinted }, tag)
+        }))
       : null,
     issue.assignee
       ? React.createElement('div', { className: 'kb-card__assignee' },

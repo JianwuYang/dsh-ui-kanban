@@ -9,6 +9,7 @@
 import React from 'react'
 import type { BoardIssue, BoardStatus, StatusCategory } from './api.ts'
 import { IcChevronDown } from './icons.tsx'
+import { statusAccent, typeTagStyle } from './colors.ts'
 import { Avatar, SearchInput, StatusDot } from './primitives.tsx'
 import { useT } from './locales.ts'
 
@@ -86,11 +87,13 @@ export function IssueGroups({ issues, onOpen, search }: {
         // 搜索时隐藏没有匹配项的分组；平时展示全部分组（空组给占位提示）。
         if (searching && visible.length === 0) return null
         const isCollapsed = collapsed.has(colKey)
+        const accent = statusAccent(col.status.color, col.status.name)
         return (
-          <section key={colKey} className={`kb-group kb-group--${(col.status.category ?? 'unknown').replace(' ', '-')}${isCollapsed ? ' kb-group--collapsed' : ''}`}>
+          <section key={colKey} className={`kb-group${isCollapsed ? ' kb-group--collapsed' : ''}`}
+            style={{ '--kb-accent': accent } as React.CSSProperties}>
             <button type="button" className="kb-group__head" onClick={() => toggle(colKey)} aria-expanded={!isCollapsed}>
               <span className={isCollapsed ? 'kb-group__chevron' : 'kb-group__chevron kb-group__chevron--open'}><IcChevronDown size={12} /></span>
-              <StatusDot category={col.status.category} name={col.status.name} />
+              <StatusDot category={col.status.category} name={col.status.name} color={accent} />
               <span className="kb-group__count">{col.issues.length}</span>
             </button>
             {!isCollapsed ? (
@@ -111,6 +114,7 @@ export function IssueGroups({ issues, onOpen, search }: {
 function Card({ issue, onOpen }: { issue: BoardIssue; onOpen: (key: string) => void }): React.ReactElement {
   const t = useT()
   const priorityCls = priorityLevelClass(issue.priority)
+  const typeStyle = issue.issueType ? typeTagStyle(issue.issueType) : undefined
   return (
     <div
       className="kb-card kb-card--clickable"
@@ -126,7 +130,7 @@ function Card({ issue, onOpen }: { issue: BoardIssue; onOpen: (key: string) => v
       </div>
       {(issue.issueType || issue.priority || issue.assignee) ? (
         <div className="kb-card__meta">
-          {issue.issueType ? <span className="kb-tag">{issue.issueType}</span> : null}
+          {issue.issueType ? <span className="kb-tag" style={typeStyle}>{issue.issueType}</span> : null}
           {issue.priority ? <span className={`kb-tag ${priorityCls}`}>{issue.priority}</span> : null}
           {issue.assignee ? (
             <span className="kb-card__assignee">

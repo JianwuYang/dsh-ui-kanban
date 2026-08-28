@@ -6,6 +6,7 @@
 
 import React from 'react'
 import type { StatusCategory } from './api.ts'
+import { avatarStyle } from './colors.ts'
 import { buildIssueCopyText, copyText, type IssueCopyView } from './copy.ts'
 import { IcCheck, IcClose, IcCopy, IcSearch } from './icons.tsx'
 import { useT } from './locales.ts'
@@ -45,14 +46,16 @@ export function initialsOf(name: string): string {
 
 export function Avatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' | 'lg' }): React.ReactElement {
   const cls = size === 'sm' ? 'kb-avatar kb-avatar--sm' : size === 'lg' ? 'kb-avatar kb-avatar--lg' : 'kb-avatar'
-  return <span className={cls} title={name} aria-hidden="true">{initialsOf(name)}</span>
+  return <span className={cls} title={name} aria-hidden="true" style={avatarStyle(name)}>{initialsOf(name)}</span>
 }
 
 /* ---------------- StatusDot ---------------- */
 
-export function StatusDot({ category, name }: { category?: string; name?: string }): React.ReactElement {
+export function StatusDot({ category, name, color }: { category?: string; name?: string; color?: string }): React.ReactElement {
   const cat: StatusCategory = category === 'in progress' || category === 'done' || category === 'unknown' || category === 'to do' ? category : 'unknown'
-  return <span className={`kb-status-dot kb-status-dot--${cat.replace(' ', '-')}`}>{name ?? ''}</span>
+  // 指定 color 时经 --kb-dot 覆盖圆点颜色（::before 无法写内联样式，走 CSS 变量）。
+  const style = color ? ({ '--kb-dot': color } as React.CSSProperties) : undefined
+  return <span className={`kb-status-dot kb-status-dot--${cat.replace(' ', '-')}`} style={style}>{name ?? ''}</span>
 }
 
 /* ---------------- SearchInput ---------------- */
