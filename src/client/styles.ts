@@ -236,10 +236,12 @@ a.kb-tag:hover { text-decoration: underline; text-underline-offset: 2px; }
 }
 .kb-group__body--collapsed { grid-template-rows: 0fr; }
 .kb-group__inner {
-  /* border-box：折叠到 0fr 时 padding 计入高度，避免 content-box 下残留一条 padding 边 */
   box-sizing: border-box; overflow: hidden; min-height: 0;
   display: flex; flex-direction: column; gap: var(--kb-space-2); padding: 10px;
+  transition: padding 200ms var(--kb-ease);
 }
+/* 折叠态把纵向 padding 归零：与 0fr 行高一起保证完全不露边（双保险） */
+.kb-group__body--collapsed .kb-group__inner { padding-top: 0; padding-bottom: 0; }
 .kb-group__empty { padding: 12px 10px; text-align: center; font-size: var(--kb-font-xs); color: var(--kb-text-ter); }
 .kb-group--collapsed .kb-group__head { border-bottom: 0; }
 
