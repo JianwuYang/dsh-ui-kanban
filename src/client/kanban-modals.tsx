@@ -103,7 +103,9 @@ function MultiValueField({ value, onChange, options }: {
         {suggestions.length > 0 ? (
           <ul className="kb-combo__menu" role="listbox">
             {suggestions.map((o) => (
-              <li key={o} role="option" aria-selected={false} onMouseDown={() => commit(o)}>{o}</li>
+              <li key={o} role="option" aria-selected={false} tabIndex={0}
+                onMouseDown={() => commit(o)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(o) } }}>{o}</li>
             ))}
           </ul>
         ) : null}
@@ -365,7 +367,9 @@ function AssigneeField({ value, onChange, target }: { value: string; onChange: (
       {open && options.length > 0 ? (
         <ul className="kb-combo__menu" role="listbox">
           {options.map((o) => (
-            <li key={o.name} role="option" aria-selected={value === o.name} onMouseDown={() => select(o)}>
+            <li key={o.name} role="option" aria-selected={value === o.name} tabIndex={0}
+              onMouseDown={() => select(o)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); select(o) } }}>
               <Avatar name={o.displayName} size="sm" />{o.displayName} <small>{o.name}</small>
             </li>
           ))}

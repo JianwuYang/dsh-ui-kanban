@@ -96,14 +96,15 @@ export function IssueGroups({ issues, onOpen, search }: {
               <StatusDot category={col.status.category} name={col.status.name} color={accent} />
               <span className="kb-group__count">{col.issues.length}</span>
             </button>
-            {!isCollapsed ? (
-              <div className="kb-group__body">
+            {/* 折叠用 grid-template-rows 过渡（内容始终渲染，仅收起高度） */}
+            <div className={isCollapsed ? 'kb-group__body kb-group__body--collapsed' : 'kb-group__body'}>
+              <div className="kb-group__inner">
                 {visible.map((issue) => (
                   <Card key={issue.key} issue={issue} onOpen={onOpen} />
                 ))}
                 {visible.length === 0 ? <div className="kb-group__empty">{searching ? t('noMatchGroup') : t('emptyGroup')}</div> : null}
               </div>
-            ) : null}
+            </div>
           </section>
         )
       })}
