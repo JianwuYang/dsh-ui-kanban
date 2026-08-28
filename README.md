@@ -42,7 +42,15 @@ view.
   and inline error reporting from Jira.
 - **GitLab workspace.** Issues and merge requests with state filters, search,
   open-in-GitLab links, create-an-issue from selected Jira issues, link Jira,
-  create an MR (existing/new branch, branch preview, linked issues).
+  create an MR (existing/new branch, branch preview, linked issues). MR ↔ issue
+  links come from the panel's recorded links **plus** cross-references parsed
+  from MR descriptions (`Closes #12`, plain `#12` mentions — configurable in
+  settings); creating an MR with linked issues writes `Closes #iid` back into
+  its description so GitLab's own UI shows the native links too.
+- **Switch branches from the board.** A Jira card with a linked **opened** MR
+  shows a branch chip: one click runs `git fetch` + `git checkout <branch>` in
+  the workspace's local repo (several MRs → pick from a list), and git errors
+  surface in a toast.
 - **Send-to-session analysis.** From the issue detail, push an *analyze-only*
   request into the current session — or a brand-new session in the current
   workspace — through the official `ISession.prompt` /
@@ -109,6 +117,9 @@ base → user document**. Common settings are at the top; projects are nested.
               jql: ''          # `project = <key>` is auto-prepended
             gitlab:
               project: ''      # group/repo or full URL (auto-normalized)
+              mrAutoLink: true      # auto-derive MR ↔ issue links from MR descriptions
+              mrLinkKeywords: ''    # closing keywords (comma-separated; blank = GitLab's official list)
+              mrLinkMentions: true  # plain #123 mentions count as links (no closing)
             localRepo:
               directory: ''    # empty => the workspace's own path
 ```
@@ -133,7 +144,8 @@ Opened from the session-header 「看板」button (`conversation.session.header.
 - auto-syncs each project once per panel session, then silently refreshes;
 - shows a status-grouped issue list: category color accents, collapsible
   groups, issue counts, and client-side search (key / summary / assignee /
-  status);
+  status); cards with a linked opened MR carry a branch chip that switches the
+  workspace repo to the MR's branch;
 - opens the issue detail on click (Enter/Space works): rendered description,
   attachment links, transitions as action buttons, comments with image
   paste/attach, and the 「丢进会话分析」action;

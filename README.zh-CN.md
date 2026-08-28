@@ -33,7 +33,12 @@
   芯片式多值输入（可点建议、可自由输入）、Jira 错误原因内联展示。
 - **GitLab 工作区。** 议题与合并请求、状态筛选、搜索、打开 GitLab 链接、从
   选中的 Jira 事项创建议题、链接 Jira、创建合并请求（现有/新建分支、分支预览、
-  关联议题）。
+  关联议题）。MR ↔ 议题的关联来自面板记录的显式链接**加上**从 MR 描述解析出的
+  交叉引用（`Closes #12`、普通 `#12` 提及——可在设置里配置）；带关联议题创建
+  MR 时会把 `Closes #iid` 写回描述，GitLab 网页上同样显示原生关联。
+- **看板上一键切分支。** 关联了 opened 合并请求的 Jira 卡片会显示分支小按钮：
+  一键在工作区本地仓库执行 `git fetch` + `git checkout <分支>`（多个 MR 时先弹
+  列表选择），git 报错原样显示在 toast 里。
 - **丢进会话分析。** 从 issue 详情一键把「只分析、不修改」的请求发进**当前会话**
   或**在当前工作区新建会话**——走官方 `ISession.prompt` /
   `workspaces.startSession()` 入口；图片附件以 image content part（base64）随消息
@@ -96,6 +101,9 @@ dsh web
               jql: ''          # 自动前置 `project = <key>`
             gitlab:
               project: ''      # group/repo 或完整 URL（自动归一化）
+              mrAutoLink: true      # 自动从 MR 描述识别议题关联
+              mrLinkKeywords: ''    # 关闭关键词（逗号分隔；留空 = GitLab 官方词表）
+              mrLinkMentions: true  # 普通 #123 提及也算关联（不关闭）
             localRepo:
               directory: ''    # 留空 => 工作区自身路径
 ```
@@ -116,7 +124,8 @@ Jira / GitLab token 都是 `role('secret')`；GUI 卡片只编辑全局 host/tok
 - 实时跟随**当前选中会话**的工作区（无选中时回退到打开按钮所属会话），变化时自动重载；
 - 每个项目在面板打开期间自动同步一次，随后静默刷新；
 - 展示按状态分组的 issue 列表：类目色条、可折叠分组、数量徽标、本地搜索
-  （key / 摘要 / 负责人 / 状态名）；
+  （key / 摘要 / 负责人 / 状态名）；关联了 opened MR 的卡片带分支小按钮，一键
+  把工作区仓库切到 MR 分支；
 - 点击卡片打开详情（Enter/Space 可键盘操作）：渲染后的描述、附件链接、流转按钮、
   支持粘贴图片的评论框，以及「丢进会话分析」操作；
 - 承载 GitLab 工作区（议题/合并请求、从 Jira 创建、链接 Jira、创建 MR）和
