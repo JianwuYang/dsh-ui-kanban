@@ -63,6 +63,12 @@ export type GitLabSettings = {
   allowSelfSigned?: boolean
   /** Configured branches (a main branch is always present). */
   branches?: GitLabBranch[]
+  /** Auto-derive MR ↔ issue links from cross-references in MR descriptions. */
+  mrAutoLink?: boolean
+  /** Comma-separated closing keywords; empty => GitLab's official word list. */
+  mrLinkKeywords?: string
+  /** A plain `#123` mention counts as a (non-closing) link. */
+  mrLinkMentions?: boolean
 }
 
 /** Result of a GitLab connectivity test (includes the recent branch list). */

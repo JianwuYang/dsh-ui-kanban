@@ -183,6 +183,19 @@ export function SettingsModal({ settings, onClose, onSave }: {
           <Field label={t('fieldApiToken')}><input className="kb-input" type="password" value={gitlab.apiToken} onChange={(e) => setGitlab({ ...gitlab, apiToken: e.target.value })} /></Field>
           <Field label={t('fieldProjectPath')}><input className="kb-input" value={gitlab.project} onChange={(e) => setGitlab({ ...gitlab, project: e.target.value })} placeholder={t('projectPathPlaceholder')} /></Field>
           <label className="kb-check"><input type="checkbox" checked={gitlab.allowSelfSigned ?? true} onChange={(e) => setGitlab({ ...gitlab, allowSelfSigned: e.target.checked })} /> {t('trustSelfSigned')}</label>
+          <div className="kb-settings__group">
+            <span className="kb-settings__head">{t('mrLinkSection')}</span>
+            <label className="kb-check"><input type="checkbox" checked={gitlab.mrAutoLink ?? true} onChange={(e) => setGitlab({ ...gitlab, mrAutoLink: e.target.checked })} /> {t('mrLinkAutoLabel')}</label>
+            {gitlab.mrAutoLink !== false ? (
+              <>
+                <Field label={t('mrLinkKeywordsLabel')}>
+                  <input className="kb-input" value={gitlab.mrLinkKeywords ?? ''} onChange={(e) => setGitlab({ ...gitlab, mrLinkKeywords: e.target.value })} placeholder={t('mrLinkKeywordsPlaceholder')} />
+                </Field>
+                <p className="kb-note">{t('mrLinkKeywordsHint')}</p>
+                <label className="kb-check"><input type="checkbox" checked={gitlab.mrLinkMentions ?? true} onChange={(e) => setGitlab({ ...gitlab, mrLinkMentions: e.target.checked })} /> {t('mrLinkMentionsLabel')}</label>
+              </>
+            ) : null}
+          </div>
           {testResult ? <p className={testResult.ok ? 'kb-note kb-note--ok' : 'kb-note kb-note--error'} role="status">{testResult.text}</p> : null}
           <div className="kb-form__footer">
             <button className="kb-btn kb-btn--ghost" onClick={() => void testGitlab()}>{t('testConnection')}</button>

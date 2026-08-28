@@ -1,3 +1,4 @@
+import { execFile } from 'node:child_process'
 import { createKanbanStore, resolveDataDir, type LinksFile } from './backend/storage.ts'
 import * as jira from './backend/jira.ts'
 import * as gitlab from './backend/gitlab.ts'
@@ -75,6 +76,9 @@ export class KanbanBackend {
         apiToken: gitlabGlobal.apiToken || legacyGitlab?.apiToken || '',
         project: override?.gitlab?.project ?? '',
         allowSelfSigned: config.allowSelfSigned ?? true,
+        mrAutoLink: override?.gitlab?.mrAutoLink ?? true,
+        mrLinkKeywords: override?.gitlab?.mrLinkKeywords ?? '',
+        mrLinkMentions: override?.gitlab?.mrLinkMentions ?? true,
       },
       localRepo: { directory: (override?.localRepo?.directory && override.localRepo.directory.trim()) || ws.path },
     }
@@ -385,6 +389,19 @@ export class KanbanBackend {
     const settings = this.requireGitlab(project)
     const links = await this.storeFor().readLinks(project.id)
     const raw = await gitlab.listGitlabIssues(settings, state, search)
+    // Reverse cross-references (MR description → issue): derive `mrIid` for
+    // issues referenced by MRs, so web-created MRs link up too. One extra call,
+    // bounded to the 100 most recent MRs.
+    const autoLink = settings.mrAutoLink ?? true
+    const refMr = new Map<number, number>()
+    if (autoLink) {
+      const mrs = await gitlab.listGitlabMrs(settings, 'all', '', 1, 100)
+      for (const m of mrs) {
+        for (const iid of gitlab.parseMrIssueRefs(m.description, mrLinkKeywords(settings), settings.mrLinkMentions ?? true)) {
+          if (!refMr.has(iid)) refMr.set(iid, m.iid)
+        }
+      }
+    }
     return raw.map((r) => ({
       id: r.id,
       iid: r.iid,
@@ -395,7 +412,9 @@ export class KanbanBackend {
       updatedAt: r.updated_at,
       author: (r.author as { username?: string } | undefined)?.username,
       jiraKeys: links.issueJira[String(r.iid)] ?? [],
-      mrIid: links.issueMr[String(r.iid)] ? Number(links.issueMr[String(r.iid)]) : undefined,
+      mrIid: links.issueMr[String(r.iid)]
+        ? Number(links.issueMr[String(r.iid)])
+        : refMr.get(r.iid),
       webUrl: `${gitlabWebBase(settings)}/-/issues/${r.iid}`,
     }))
   }
@@ -405,10 +424,17 @@ export class KanbanBackend {
     const settings = this.requireGitlab(project)
     const links = await this.storeFor().readLinks(project.id)
     const raw = await gitlab.listGitlabMrs(settings, state, search)
+    const autoLink = settings.mrAutoLink ?? true
     return raw.map((r) => {
-      const issueIids = Object.entries(links.issueMr)
-        .filter(([, mr]) => Number(mr) === r.iid)
-        .map(([iid]) => Number(iid))
+      const parsed = autoLink
+        ? gitlab.parseMrIssueRefs(r.description, mrLinkKeywords(settings), settings.mrLinkMentions ?? true)
+        : []
+      const issueIids = [...new Set([
+        ...Object.entries(links.issueMr)
+          .filter(([, mr]) => Number(mr) === r.iid)
+          .map(([iid]) => Number(iid)),
+        ...parsed,
+      ])]
       const jiraSet = new Set<string>()
       for (const iid of issueIids) {
         for (const k of links.issueJira[String(iid)] ?? []) jiraSet.add(k)
@@ -504,11 +530,14 @@ export class KanbanBackend {
     if (params.createBranch) {
       await gitlab.createGitlabBranch(settings, params.sourceBranch, target)
     }
+    // Write `Closes #iid` lines for the linked issues so GitLab's own UI shows
+    // the native cross-references (auto-close on merge), not just our local store.
+    const closes = params.issueIids.map((iid) => `Closes #${iid}`).join('\n')
     const mr = await gitlab.createGitlabMr(settings, {
       source_branch: params.sourceBranch,
       target_branch: target,
       title: params.title,
-      description: params.title,
+      description: params.title ? `${params.title}\n\n${closes}` : closes,
     })
     const links = await this.storeFor().readLinks(project.id)
     for (const iid of params.issueIids) links.issueMr[String(iid)] = String(mr.iid)
@@ -553,11 +582,43 @@ export class KanbanBackend {
     const settings = this.requireGitlab(project)
     return gitlab.testGitlabConnection(settings)
   }
+
+  /** Switch the project's local repo to a branch: `git fetch --all` then `git checkout`. */
+  async gitCheckout(project: KanbanProject, branch: string): Promise<{ ok: boolean; branch: string; error?: string }> {
+    const dir = project.localRepo?.directory?.trim()
+    if (!dir) throw new Error(`workspace "${project.name}" has no local repo configured`)
+    // Defense-in-depth: execFile 不经过 shell，这里再限制分支名字符（git 规则的精简版）。
+    if (!/^(?![-/])(?!.*\.\.)[A-Za-z0-9._/-]+(?<![./])$/.test(branch)) throw new Error(`invalid branch name: "${branch}"`)
+    const run = (args: string[]): Promise<{ code: number; stderr: string }> =>
+      new Promise((resolve) => {
+        execFile('git', ['-C', dir, ...args], { timeout: 60_000 }, (error, _stdout, stderr) => {
+          resolve({ code: error ? Number((error as { code?: unknown }).code) || 1 : 0, stderr: String(stderr ?? '').trim() })
+        })
+      })
+    // 先同步远端：刚在 GitLab 上新建的分支本地还不存在，fetch 后 `git checkout`
+    // 的 DWIM 行为会自动建同名跟踪分支。
+    const fetched = await run(['fetch', '--quiet', '--all'])
+    const checked = await run(['checkout', branch])
+    if (checked.code !== 0) {
+      const reason = checked.stderr || (fetched.code !== 0 ? fetched.stderr : '')
+      return { ok: false, branch, error: reason || 'git checkout failed' }
+    }
+    return { ok: true, branch }
+  }
 }
 
 /** Normalize a path for the workspace-path fallback match (no realpath here). */
 function normalizePath(p: string): string {
   return p.replace(/\/+$/, '')
+}
+
+/** Effective closing-keyword list for MR cross-reference parsing (config, or GitLab's official list). */
+function mrLinkKeywords(settings: GitLabSettings): string[] {
+  const custom = (settings.mrLinkKeywords ?? '')
+    .split(/[,，]/)
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+  return custom.length ? custom : gitlab.GITLAB_CLOSING_KEYWORDS
 }
 
 /** Convenience export so the config-carrying project type is visible to tools. */

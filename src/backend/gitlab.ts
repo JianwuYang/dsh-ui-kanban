@@ -18,6 +18,43 @@ export function projectPath(project: string): string {
   return p.replace(/^https?:\/\/[^/]+\/?/i, '')
 }
 
+/** GitLab's official closing keywords (stems expanded to -s/-d/-ing forms). */
+export const GITLAB_CLOSING_KEYWORDS = ['close', 'closes', 'closed', 'closing', 'fix', 'fixes', 'fixed', 'fixing', 'resolve', 'resolves', 'resolved', 'resolving']
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Extract issue iids cross-referenced in a MR description:
+ * - plain `#123` mentions (only when `includeMentions`),
+ * - `Closes #123` / `fix #12` style closing refs (the configured keywords).
+ *
+ * Both are GitLab-native cross-references; the union is the MR ↔ issue link set
+ * the panel derives (on top of the explicit links the user records in the store).
+ */
+export function parseMrIssueRefs(
+  description: string | null | undefined,
+  closingKeywords: string[],
+  includeMentions: boolean,
+): number[] {
+  if (!description) return []
+  const refs = new Set<number>()
+  if (includeMentions) {
+    // `#123` but not inside a word, not `!#` (MR refs), not a hash fragment like `a#12`.
+    const mentionRe = /(?:^|[^\w#!])#(\d+)(?!\d)/g
+    for (const m of description.matchAll(mentionRe)) refs.add(Number(m[1]))
+  }
+  if (closingKeywords.length) {
+    const alt = closingKeywords.map(escapeRegExp).join('|')
+    // Preceding char: line start, whitespace, or punctuation — so CJK keywords
+    // work too (ASCII `\b` would fail on them). No space requirement before `#`.
+    const closingRe = new RegExp(`(?:^|[\\s(（\`"'/\\-*_=:;])(${alt})\\s*#(\\d+)(?!\\d)`, 'gi')
+    for (const m of description.matchAll(closingRe)) refs.add(Number(m[2]))
+  }
+  return [...refs]
+}
+
 function createClient(settings: GitLabSettings): AxiosInstance {
   const baseUrl = settings.baseUrl.replace(/\/+$/, '')
   return axios.create({
@@ -50,6 +87,7 @@ export interface ProjectIssue {
 }
 export interface ProjectMr {
   id: number; iid: number; title: string; state: string
+  description?: string
   source_branch?: string; target_branch?: string; created_at?: string
   author?: { username?: string; name?: string }
 }

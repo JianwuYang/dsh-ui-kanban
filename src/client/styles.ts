@@ -226,7 +226,22 @@ a.kb-tag:hover { text-decoration: underline; text-underline-offset: 2px; }
 .kb-card__summaryline .kb-card__key { display: inline; margin-right: 6px; }
 .kb-card__summaryline .kb-card__summary { display: inline; margin-top: 0; }
 .kb-card__meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: var(--kb-space-2); }
-.kb-card__meta .kb-card__assignee { margin-top: 0; margin-left: auto; }
+.kb-card__meta .kb-card__assignee { margin-top: 0; }
+.kb-card__meta .kb-card__assignee:last-child { margin-left: auto; }
+/* 卡片上的分支切换 chip：外观贴近 kb-tag，但它是可点的动作（品牌色底）。 */
+.kb-card__branch {
+  margin-left: auto; margin-top: 0;
+  appearance: none; border: 0; padding: 1px 8px;
+  display: inline-flex; align-items: center; gap: 4px;
+  font: inherit; font-size: var(--kb-font-xs); line-height: 18px; font-family: var(--kb-mono);
+  border-radius: var(--kb-radius-pill); cursor: pointer;
+  background: color-mix(in srgb, var(--kb-primary) 12%, transparent); color: var(--kb-primary);
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  transition: background var(--kb-transition);
+}
+.kb-card__branch:hover { background: color-mix(in srgb, var(--kb-primary) 22%, transparent); }
+.kb-card__branch:active { transform: scale(.97); }
+.kb-card__branch svg { flex: none; }
 
 /* ---- 分组列表（应用内的唯一视图：按状态分组、可折叠） ---- */
 .kb-groups { display: flex; flex-direction: column; gap: 10px; }
@@ -305,6 +320,8 @@ a.kb-tag:hover { text-decoration: underline; text-underline-offset: 2px; }
 .kb-field__error { font-size: var(--kb-font-xs); color: var(--kb-danger); }
 .kb-input--lg { padding: 9px 10px; font-size: var(--kb-font-md); }
 .kb-check { display: flex; align-items: center; gap: 6px; font-size: var(--kb-font-sm); color: var(--kb-text-sec); cursor: pointer; }
+.kb-settings__group { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; border-top: 1px solid var(--kb-border); }
+.kb-settings__head { font-size: var(--kb-font-xs); font-weight: 600; letter-spacing: .4px; text-transform: uppercase; color: var(--kb-text-ter); }
 .kb-check input[type='checkbox'] { width: 15px; height: 15px; accent-color: var(--kb-primary); flex: none; }
 .kb-badge { border-radius: var(--kb-radius-pill); padding: 0 8px; font-size: var(--kb-font-xs); line-height: 18px; background: var(--dsw-alias-bg-module-platform); color: var(--kb-text-sec); white-space: nowrap; }
 
@@ -698,6 +715,7 @@ a.kb-tag:hover { text-decoration: underline; text-underline-offset: 2px; }
 .kb-modal__close:focus-visible, .kb-card:focus-visible, .kb-tag__x:focus-visible,
 .kb-search__clear:focus-visible, .kb-lightbox__nav:focus-visible, .kb-lightbox__close:focus-visible,
 .kb-card__extlink:focus-visible, .kb-selectlist__item:focus-visible, a.kb-tag:focus-visible,
+.kb-card__branch:focus-visible,
 .kkb-discard:focus-visible, .kkb-save:focus-visible, .kkb-reset:focus-visible {
   outline: 2px solid var(--kb-primary); outline-offset: 2px;
 }

@@ -7,10 +7,12 @@
  */
 
 import React from 'react'
-import type { BoardIssue, BoardStatus, StatusCategory } from './api.ts'
-import { IcChevronDown } from './icons.tsx'
+import { api, type BoardIssue, type BoardStatus, type GitlabMr, type StatusCategory } from './api.ts'
+import { IcBranch, IcChevronDown, IcSpinner } from './icons.tsx'
 import { statusAccent, typeTagStyle } from './colors.ts'
 import { Avatar, SearchInput, StatusDot } from './primitives.tsx'
+import { useChoice } from './modal.tsx'
+import { useToast } from './toast.tsx'
 import { useT } from './locales.ts'
 
 const CATEGORY_ORDER: StatusCategory[] = ['to do', 'in progress', 'done', 'unknown']
@@ -63,8 +65,12 @@ export function BoardToolbar({ search, onSearch, meta }: {
 
 /* ------------------------------ 分组列表 ------------------------------ */
 
-export function IssueGroups({ issues, onOpen, search }: {
+export function IssueGroups({ issues, onOpen, search, mrByKey, target }: {
   issues: BoardIssue[]; onOpen: (key: string) => void; search: string
+  /** Jira key → opened MRs（含 GitLab 描述里交叉引用解析出的关联），用于卡片上的分支切换。 */
+  mrByKey?: ReadonlyMap<string, GitlabMr[]>
+  /** 切换分支的目标工作区。 */
+  target?: string
 }): React.ReactElement {
   const [collapsed, setCollapsed] = React.useState<ReadonlySet<string>>(new Set())
   const t = useT()
@@ -100,7 +106,7 @@ export function IssueGroups({ issues, onOpen, search }: {
             <div className={isCollapsed ? 'kb-group__body kb-group__body--collapsed' : 'kb-group__body'}>
               <div className="kb-group__inner">
                 {visible.map((issue) => (
-                  <Card key={issue.key} issue={issue} onOpen={onOpen} />
+                  <Card key={issue.key} issue={issue} onOpen={onOpen} mrs={mrByKey?.get(issue.key)} target={target} />
                 ))}
                 {visible.length === 0 ? <div className="kb-group__empty">{searching ? t('noMatchGroup') : t('emptyGroup')}</div> : null}
               </div>
@@ -112,10 +118,14 @@ export function IssueGroups({ issues, onOpen, search }: {
   )
 }
 
-function Card({ issue, onOpen }: { issue: BoardIssue; onOpen: (key: string) => void }): React.ReactElement {
+function Card({ issue, onOpen, mrs, target }: {
+  issue: BoardIssue; onOpen: (key: string) => void
+  mrs?: GitlabMr[]; target?: string
+}): React.ReactElement {
   const t = useT()
   const priorityCls = priorityLevelClass(issue.priority)
   const typeStyle = issue.issueType ? typeTagStyle(issue.issueType) : undefined
+  const hasBranch = mrs !== undefined && mrs.length > 0
   return (
     <div
       className="kb-card kb-card--clickable"
@@ -124,12 +134,12 @@ function Card({ issue, onOpen }: { issue: BoardIssue; onOpen: (key: string) => v
       onClick={() => onOpen(issue.key)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(issue.key) } }}
     >
-      {/* 紧凑布局：key 与摘要同行（溢出自然换行）；类型/优先级/负责人同处第二行 */}
+      {/* 紧凑布局：key 与摘要同行（溢出自然换行）；类型/优先级/负责人/分支同处第二行 */}
       <div className="kb-card__summaryline">
         <span className="kb-card__key">{issue.key}</span>
         <span className="kb-card__summary">{issue.summary}</span>
       </div>
-      {(issue.issueType || issue.priority || issue.assignee) ? (
+      {(issue.issueType || issue.priority || issue.assignee || hasBranch) ? (
         <div className="kb-card__meta">
           {issue.issueType ? <span className="kb-tag" style={typeStyle}>{issue.issueType}</span> : null}
           {issue.priority ? <span className={`kb-tag ${priorityCls}`}>{issue.priority}</span> : null}
@@ -139,8 +149,71 @@ function Card({ issue, onOpen }: { issue: BoardIssue; onOpen: (key: string) => v
               <span className="kb-card__assignee-name">{issue.assignee}</span>
             </span>
           ) : null}
+          {hasBranch ? <BranchChip mrs={mrs} target={target} /> : null}
         </div>
       ) : null}
     </div>
+  )
+}
+
+/**
+ * 卡片上的分支切换按钮：该 Jira 关联了 opened 的 MR 时出现。
+ * 单个 MR 点击直接切换；多个 MR 先弹列表选择。切换 = host 侧 fetch + checkout，
+ * 结果 toast 展示（含 git 报错原文）。按钮是卡片内嵌的真 button，需拦截冒泡。
+ */
+function BranchChip({ mrs, target }: { mrs: GitlabMr[]; target?: string }): React.ReactElement {
+  const t = useT()
+  const toast = useToast()
+  const choice = useChoice()
+  const [busy, setBusy] = React.useState(false)
+
+  const doSwitch = async (branch: string): Promise<void> => {
+    setBusy(true)
+    try {
+      const r = await api.gitCheckout(branch, target)
+      if (r.ok) toast(t('branchSwitched', { branch: r.branch }))
+      else toast(r.error || t('branchSwitchFailed'), 'error')
+    } catch (e) {
+      toast(e instanceof Error ? e.message : t('branchSwitchFailed'), 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const withBranch = mrs.filter((m) => Boolean(m.sourceBranch))
+  const onClick = async (e: React.MouseEvent): Promise<void> => {
+    e.stopPropagation()
+    if (busy || withBranch.length === 0) return
+    if (withBranch.length === 1) {
+      await doSwitch(withBranch[0]!.sourceBranch!)
+      return
+    }
+    const picked = await choice({
+      title: t('switchBranchTitle'),
+      message: t('switchBranchPick'),
+      options: withBranch.map((m, i) => ({
+        value: m.sourceBranch!,
+        label: `!${m.iid} ${m.sourceBranch}`,
+        primary: i === 0,
+      })),
+    })
+    if (picked !== null) await doSwitch(picked)
+  }
+
+  const label = withBranch.length <= 1 ? (withBranch[0]?.sourceBranch ?? mrs[0]?.sourceBranch ?? '')
+    : `${withBranch[0]!.sourceBranch} +${withBranch.length - 1}`
+  return (
+    <button
+      type="button"
+      className="kb-card__branch"
+      title={mrs.length === 1
+        ? t('switchBranchTitle')
+        : mrs.map((m) => `!${m.iid} ${m.sourceBranch ?? ''}`).join('\n')}
+      onClick={(e) => { void onClick(e) }}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation() }}
+    >
+      {busy ? <IcSpinner size={11} className="kb-spin" /> : <IcBranch size={11} />}
+      <span>{label}</span>
+    </button>
   )
 }

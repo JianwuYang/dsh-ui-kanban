@@ -10,7 +10,7 @@
  */
 
 import React from 'react'
-import { api, type BoardIssue, type ProjectSummary, type SettingsPayload, type SyncResult } from './api.ts'
+import { api, type BoardIssue, type GitlabMr, type ProjectSummary, type SettingsPayload, type SyncResult } from './api.ts'
 import { BoardToolbar, IssueGroups } from './kanban-board.tsx'
 import { CreateModal, DetailModal, GitLabPanel, SettingsModal, SyncModal } from './kanban-modals.tsx'
 import { DialogsProvider } from './modal.tsx'
@@ -36,12 +36,15 @@ interface AppState {
   createOpen: boolean
   detailKey: string | null
   gitlabOpen: boolean
+  /** Jira key → opened MRs（卡片分支按钮的数据源；GitLab 未配置时为空）。 */
+  mrByKey: ReadonlyMap<string, GitlabMr[]>
 }
 
 const initial: AppState = {
   projects: [], currentProjectId: null, settings: null, configured: false, issues: [],
   meta: null, search: '', loading: true, syncing: false,
   error: null, settingsOpen: false, syncOpen: false, createOpen: false, detailKey: null, gitlabOpen: false,
+  mrByKey: new Map(),
 }
 
 /** 薄包装：应用内弹窗/toast 的 Provider 挂在最外层，KanbanAppInner 内部消费。 */
@@ -86,6 +89,26 @@ function KanbanAppInner({ onClose, variant = 'fullscreen', projectTarget, onSend
         meta: { lastSyncedAt: fullMeta.lastSyncedAt, issueCount: fullMeta.issueCount },
         loading: false,
       })
+      // 卡片分支按钮的索引：GitLab 已配置时拉 opened MR 并按 Jira key 建表。
+      // 独立于主体加载（失败静默 → 按钮不出现即可），也随静默刷新保持最新。
+      if (aid && settings.settings?.gitlab?.baseUrl && settings.settings?.gitlab?.project) {
+        try {
+          const mrs = await api.gitlabMrs('opened', '', aid)
+          const by = new Map<string, GitlabMr[]>()
+          for (const m of mrs) {
+            for (const k of m.jiraKeys) {
+              const list = by.get(k) ?? []
+              list.push(m)
+              by.set(k, list)
+            }
+          }
+          patch({ mrByKey: by })
+        } catch {
+          patch({ mrByKey: new Map() })
+        }
+      } else {
+        patch({ mrByKey: new Map() })
+      }
     } catch (error) {
       patch({ loading: false, error: error instanceof Error ? error.message : String(error) })
     }
@@ -209,7 +232,8 @@ function KanbanAppInner({ onClose, variant = 'fullscreen', projectTarget, onSend
             : <>
                 <BoardToolbar search={state.search} onSearch={(v) => patch({ search: v })}
                   meta={state.meta?.lastSyncedAt ? t('syncedAt', { time: formatDateTime(state.meta.lastSyncedAt) }) : ''} />
-                <IssueGroups issues={state.issues} onOpen={openDetail} search={state.search} />
+                <IssueGroups issues={state.issues} onOpen={openDetail} search={state.search}
+                  mrByKey={state.mrByKey} target={state.currentProjectId ?? undefined} />
               </>}
       </main>
 

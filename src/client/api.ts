@@ -26,7 +26,7 @@ export interface IssueComment { id: string; author?: string; created?: string; b
 
 export interface JiraSettings { baseUrl: string; apiToken: string; projectKey: string; jql: string }
 export interface GitLabBranch { name: string; marker?: string }
-export interface GitLabSettings { baseUrl: string; apiToken: string; project: string; allowSelfSigned?: boolean; branches?: GitLabBranch[] }
+export interface GitLabSettings { baseUrl: string; apiToken: string; project: string; allowSelfSigned?: boolean; branches?: GitLabBranch[]; mrAutoLink?: boolean; mrLinkKeywords?: string; mrLinkMentions?: boolean }
 export interface LocalRepoSettings { directory: string }
 export interface AppSettings { jira?: JiraSettings; gitlab?: GitLabSettings; localRepo?: LocalRepoSettings }
 
@@ -124,5 +124,6 @@ export const api = {
   gitlabLinkIssueToMr: (iid: number, mrIid: number, target?: string | { workspace?: string; cwd?: string }) => request<{ ok: boolean }>(withTarget(`/gitlab/issues/${iid}/mr`, target), { method: 'POST', ...json({ mrIid }) }),
   gitlabCloseIssue: (iid: number, target?: string | { workspace?: string; cwd?: string }) => request<{ ok: boolean }>(withTarget(`/gitlab/issues/${iid}/close`, target), { method: 'POST' }),
   gitlabCloseMr: (iid: number, target?: string | { workspace?: string; cwd?: string }) => request<{ ok: boolean }>(withTarget(`/gitlab/merge_requests/${iid}/close`, target), { method: 'POST' }),
+  gitCheckout: (branch: string, target?: string | { workspace?: string; cwd?: string }) => request<{ ok: boolean; branch: string; error?: string }>(withTarget('/git/checkout', target), { method: 'POST', ...json({ branch }) }),
   syncPreview: (options?: { jql?: string; assigneeSelf?: boolean; reporterSelf?: boolean }, target?: string | { workspace?: string; cwd?: string }) => request<{ total: number; issues: { key: string; summary: string }[] }>(withTarget('/sync/preview', target), { method: 'POST', ...(options ? json(options) : {}) }),
 }

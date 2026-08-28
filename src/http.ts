@@ -67,6 +67,7 @@ async function handle(
     if (segments[0] === 'sync') return await syncRoute(backend, segments, method, query, body, res)
     if (segments[0] === 'issues') return await issuesRoute(backend, segments, method, query, body, res)
     if (segments[0] === 'gitlab') return await gitlabRoute(backend, segments, method, query, body, res)
+    if (segments[0] === 'git') return await gitRoute(backend, segments, method, query, body, res)
     if (segments[0] === 'attachment-proxy') return await attachmentProxyRoute(backend, query, res)
 
     sendJson(res, 404, { error: 'not found' })
@@ -347,7 +348,12 @@ async function settingsRoute(
     let entry = overrides.find((p) => p.id === project.id)
     if (!entry) { entry = { id: project.id }; overrides.push(entry) }
     if (patch.jira) entry.jira = { projectKey: patch.jira.projectKey ?? entry.jira?.projectKey ?? '', jql: patch.jira.jql ?? entry.jira?.jql ?? '' }
-    if (patch.gitlab) entry.gitlab = { project: patch.gitlab.project ?? entry.gitlab?.project ?? '' }
+    if (patch.gitlab) entry.gitlab = {
+      project: patch.gitlab.project ?? entry.gitlab?.project ?? '',
+      mrAutoLink: patch.gitlab.mrAutoLink ?? entry.gitlab?.mrAutoLink ?? true,
+      mrLinkKeywords: patch.gitlab.mrLinkKeywords ?? entry.gitlab?.mrLinkKeywords ?? '',
+      mrLinkMentions: patch.gitlab.mrLinkMentions ?? entry.gitlab?.mrLinkMentions ?? true,
+    }
     if (patch.localRepo) entry.localRepo = { directory: patch.localRepo.directory ?? '' }
     next.projects = overrides
     await writeConfig(next)
@@ -491,6 +497,26 @@ async function gitlabRoute(
   }
   if (kind === 'merge_requests' && id !== undefined && sub === 'close' && method === 'POST') {
     return sendJson(res, 200, await backend.gitlabCloseMr(active, Number(id)))
+  }
+  sendJson(res, 404, { error: 'not found' })
+}
+
+/* -------------------------------- git --------------------------------- */
+
+/** POST /git/checkout — switch the workspace's local repo to a branch. */
+async function gitRoute(
+  backend: KanbanBackend,
+  segments: string[],
+  method: string,
+  query: URLSearchParams,
+  body: Record<string, unknown>,
+  res: ServerResponse,
+): Promise<void> {
+  const active = requireRouteProject(backend, query)
+  if (segments[1] === 'checkout' && method === 'POST') {
+    const branch = typeof body.branch === 'string' ? body.branch.trim() : ''
+    if (!branch) throw new Error('branch is required.')
+    return sendJson(res, 200, await backend.gitCheckout(active, branch))
   }
   sendJson(res, 404, { error: 'not found' })
 }

@@ -38,6 +38,12 @@ export interface JiraOverride {
 /** Per-workspace GitLab override (host/token come from the global settings). */
 export interface GitlabOverride {
   project?: string
+  /** Auto-derive MR ↔ issue links from cross-references in MR descriptions. */
+  mrAutoLink?: boolean
+  /** Comma-separated closing keywords; empty => GitLab's official word list. */
+  mrLinkKeywords?: string
+  /** A plain `#123` mention counts as a (non-closing) link. */
+  mrLinkMentions?: boolean
 }
 
 /** Per-workspace local-repo override; empty => the workspace's own directory. */
@@ -90,6 +96,9 @@ export interface KanbanProject {
     project: string
     allowSelfSigned?: boolean
     branches?: { name: string; marker?: string }[]
+    mrAutoLink: boolean
+    mrLinkKeywords: string
+    mrLinkMentions: boolean
   }
   localRepo?: { directory: string }
 }
@@ -111,6 +120,9 @@ const JiraOverrideSchema = Schema.object({
 
 const GitlabOverrideSchema = Schema.object({
   project: Schema.string().default(''),
+  mrAutoLink: Schema.boolean().default(true),
+  mrLinkKeywords: Schema.string().default(''),
+  mrLinkMentions: Schema.boolean().default(true),
 })
 
 const LocalRepoOverrideSchema = Schema.object({
