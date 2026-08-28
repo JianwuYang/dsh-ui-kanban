@@ -161,7 +161,7 @@ function KanbanAppInner({ onClose, variant = 'fullscreen', projectTarget, onSend
             <span className="kkb-app__brand"><span className="kkb-app__brandicon"><IcBoard size={16} /></span>{t('appBrand')}</span>
             <span className="kkb-app__meta" title={metaText}>
               {active?.projectKey ? `${active.name} · ${active.projectKey}` : active ? active.name : ''}
-              {state.meta ? ` · ${state.meta.issueCount} issues` : ''}
+              {state.meta ? ` · ${t('issuesCount', { n: state.meta.issueCount })}` : ''}
             </span>
             <span className="kkb-app__spacer" />
             <IconButton icon={<IcClose size={14} />} label={t('closePanel')} ghost onClick={onClose} />
@@ -169,7 +169,7 @@ function KanbanAppInner({ onClose, variant = 'fullscreen', projectTarget, onSend
           <div className="kkb-app__barrow">
             <span className="kkb-app__spacer" />
             <button type="button" className="kb-btn" disabled={state.syncing} onClick={() => void runSync()}>{syncingIcon}{state.syncing ? t('syncing') : t('sync')}</button>
-            <button type="button" className="kb-btn" onClick={() => { if (state.configured) patch({ createOpen: true }); else openSettings() }}><IcPlus size={13} />{t('newIssue')}</button>
+            <button type="button" className="kb-btn kb-btn--primary" onClick={() => { if (state.configured) patch({ createOpen: true }); else openSettings() }}><IcPlus size={13} />{t('newIssue')}</button>
             <button type="button" className="kb-btn" onClick={() => patch({ gitlabOpen: true })}><IcGitlab size={13} />GitLab</button>
             <button type="button" className="kb-btn" onClick={() => patch({ settingsOpen: true })}><IcGear size={13} />{t('settings')}</button>
           </div>
@@ -179,11 +179,11 @@ function KanbanAppInner({ onClose, variant = 'fullscreen', projectTarget, onSend
           <span className="kkb-app__brand"><span className="kkb-app__brandicon"><IcBoard size={16} /></span>dsh-kanban</span>
           <span className="kkb-app__meta" title={metaText}>
             {active?.projectKey ? `${active.name} · ${active.projectKey}` : active ? active.name : ''}
-            {state.meta ? ` · ${state.meta.issueCount} issues` : ''}
+            {state.meta ? ` · ${t('issuesCount', { n: state.meta.issueCount })}` : ''}
           </span>
           <span className="kkb-app__spacer" />
           <button type="button" className="kb-btn" disabled={state.syncing} onClick={() => void runSync()}>{syncingIcon}{state.syncing ? t('syncing') : t('sync')}</button>
-          <button type="button" className="kb-btn" onClick={() => { if (state.configured) patch({ createOpen: true }); else openSettings() }}><IcPlus size={13} />{t('newIssue')}</button>
+          <button type="button" className="kb-btn kb-btn--primary" onClick={() => { if (state.configured) patch({ createOpen: true }); else openSettings() }}><IcPlus size={13} />{t('newIssue')}</button>
           <button type="button" className="kb-btn" onClick={() => patch({ gitlabOpen: true })}><IcGitlab size={13} />GitLab</button>
           <button type="button" className="kb-btn" onClick={() => patch({ settingsOpen: true })}><IcGear size={13} />{t('settings')}</button>
           <IconButton icon={<IcClose size={14} />} label={t('closePanel')} ghost onClick={onClose} />
