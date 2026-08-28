@@ -462,6 +462,23 @@ a.kb-tag:hover { text-decoration: underline; text-underline-offset: 2px; }
 .kb-combo__menu li:focus-visible { outline: 2px solid var(--kb-primary); outline-offset: -2px; }
 .kb-combo__menu small { color: var(--kb-text-ter); margin-left: auto; font-size: var(--kb-font-xs); }
 
+/* ---- 同步确认弹窗 ---- */
+.kb-sync-opts { display: flex; gap: 14px; flex-wrap: wrap; }
+.kb-sync-preview {
+  display: block; font-family: var(--kb-mono); font-size: var(--kb-font-xs); color: var(--kb-text-sec);
+  background: var(--kb-surface); border: 1px solid var(--kb-border); border-radius: var(--kb-radius-sm);
+  padding: 8px 10px; word-break: break-all; white-space: pre-wrap;
+}
+.kb-sync-head { display: flex; align-items: center; justify-content: space-between; gap: var(--kb-space-2); }
+.kb-sync-list {
+  display: flex; flex-direction: column; gap: 4px; padding: 6px;
+  border: 1px solid var(--kb-border); border-radius: var(--kb-radius-md); background: var(--kb-surface-raised);
+  max-height: 220px; overflow-y: auto;
+}
+.kb-sync-item { display: flex; gap: var(--kb-space-2); align-items: baseline; font-size: var(--kb-font-sm); }
+.kb-sync-item__key { font-family: var(--kb-mono); font-size: var(--kb-font-xs); color: var(--kb-primary); font-weight: 600; flex: none; }
+.kb-sync-item__summary { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* ---- 同步统计行（toolview） ---- */
 .kb-statrow { display: flex; gap: var(--kb-space-2); flex-wrap: wrap; }
 .kb-statrow__item {

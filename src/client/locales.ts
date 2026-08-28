@@ -42,6 +42,8 @@ export const zh = {
   notConfiguredTitle: '尚未连接 Jira', notConfiguredHint: '请先在设置里配置 Jira 连接，再同步。', openSettings: '打开设置',
   noSyncTitle: '还没有同步', noSyncHint: '点击「同步」拉取 Jira 里的 issue。', autoSyncingTitle: '正在同步…', autoSyncingHint: '正在自动从 Jira 拉取最新 issue。',
   syncDone: '同步完成：{total} 个 issue（新增 {added}，更新 {updated}）', syncFailed: '同步失败',
+  startSync: '开始同步', assigneeSelf: '经办人是我', reporterSelf: '报告人是我', syncSelfHint: '两项为「或」关系：满足任一即入选',
+  previewQuery: '预览查询', previewResult: '预览结果', resultCount: '共 {n} 条', resultEmpty: '没有匹配的 issue', resultMore: '还有 {n} 条…',
   configJiraFirst: '请先在设置里配置 Jira 连接', settingsSaved: '设置已保存', switchFailed: '切换失败', loadFailed: '加载失败',
   issuesCount: '{n} issues', syncedAt: '同步于 {time}',
   // 分组列表
@@ -138,6 +140,8 @@ export const en: Record<TKey, string> = {
   notConfiguredTitle: 'Jira not connected', notConfiguredHint: 'Configure the Jira connection in settings, then sync.', openSettings: 'Open settings',
   noSyncTitle: 'Nothing synced yet', noSyncHint: 'Click "Sync" to pull issues from Jira.', autoSyncingTitle: 'Syncing…', autoSyncingHint: 'Pulling the latest issues from Jira automatically.',
   syncDone: 'Synced {total} issues ({added} added, {updated} updated)', syncFailed: 'Sync failed',
+  startSync: 'Start sync', assigneeSelf: 'I am the assignee', reporterSelf: 'I am the reporter', syncSelfHint: 'OR semantics: matching either role includes the issue',
+  previewQuery: 'Preview query', previewResult: 'Preview', resultCount: '{n} issues', resultEmpty: 'No matching issues', resultMore: '… and {n} more',
   configJiraFirst: 'Configure the Jira connection in settings first', settingsSaved: 'Settings saved', switchFailed: 'Failed to switch', loadFailed: 'Failed to load',
   issuesCount: '{n} issues', syncedAt: 'Synced {time}',
   searchPlaceholder: 'Search key / summary / assignee…', searchClear: 'Clear search', searchAria: 'Search',

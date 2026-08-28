@@ -12,7 +12,7 @@
 import React from 'react'
 import { api, type BoardIssue, type ProjectSummary, type SettingsPayload, type SyncResult } from './api.ts'
 import { BoardToolbar, IssueGroups } from './kanban-board.tsx'
-import { CreateModal, DetailModal, GitLabPanel, SettingsModal } from './kanban-modals.tsx'
+import { CreateModal, DetailModal, GitLabPanel, SettingsModal, SyncModal } from './kanban-modals.tsx'
 import { DialogsProvider } from './modal.tsx'
 import { EmptyState, IconButton, SkeletonBoard, formatDateTime } from './primitives.tsx'
 import { useT } from './locales.ts'
@@ -32,6 +32,7 @@ interface AppState {
   syncing: boolean
   error: string | null
   settingsOpen: boolean
+  syncOpen: boolean
   createOpen: boolean
   detailKey: string | null
   gitlabOpen: boolean
@@ -40,7 +41,7 @@ interface AppState {
 const initial: AppState = {
   projects: [], currentProjectId: null, settings: null, configured: false, issues: [],
   meta: null, search: '', loading: true, syncing: false,
-  error: null, settingsOpen: false, createOpen: false, detailKey: null, gitlabOpen: false,
+  error: null, settingsOpen: false, syncOpen: false, createOpen: false, detailKey: null, gitlabOpen: false,
 }
 
 /** 薄包装：应用内弹窗/toast 的 Provider 挂在最外层，KanbanAppInner 内部消费。 */
@@ -168,7 +169,7 @@ function KanbanAppInner({ onClose, variant = 'fullscreen', projectTarget, onSend
           </div>
           <div className="kkb-app__barrow">
             <span className="kkb-app__spacer" />
-            <button type="button" className="kb-btn" disabled={state.syncing} onClick={() => void runSync()}>{syncingIcon}{state.syncing ? t('syncing') : t('sync')}</button>
+            <button type="button" className="kb-btn" disabled={state.syncing} onClick={() => { if (state.configured) patch({ syncOpen: true }); else openSettings() }}>{syncingIcon}{state.syncing ? t('syncing') : t('sync')}</button>
             <button type="button" className="kb-btn kb-btn--primary" onClick={() => { if (state.configured) patch({ createOpen: true }); else openSettings() }}><IcPlus size={13} />{t('newIssue')}</button>
             <button type="button" className="kb-btn" onClick={() => patch({ gitlabOpen: true })}><IcGitlab size={13} />GitLab</button>
             <button type="button" className="kb-btn" onClick={() => patch({ settingsOpen: true })}><IcGear size={13} />{t('settings')}</button>
@@ -182,7 +183,7 @@ function KanbanAppInner({ onClose, variant = 'fullscreen', projectTarget, onSend
             {state.meta ? ` · ${t('issuesCount', { n: state.meta.issueCount })}` : ''}
           </span>
           <span className="kkb-app__spacer" />
-          <button type="button" className="kb-btn" disabled={state.syncing} onClick={() => void runSync()}>{syncingIcon}{state.syncing ? t('syncing') : t('sync')}</button>
+          <button type="button" className="kb-btn" disabled={state.syncing} onClick={() => { if (state.configured) patch({ syncOpen: true }); else openSettings() }}>{syncingIcon}{state.syncing ? t('syncing') : t('sync')}</button>
           <button type="button" className="kb-btn kb-btn--primary" onClick={() => { if (state.configured) patch({ createOpen: true }); else openSettings() }}><IcPlus size={13} />{t('newIssue')}</button>
           <button type="button" className="kb-btn" onClick={() => patch({ gitlabOpen: true })}><IcGitlab size={13} />GitLab</button>
           <button type="button" className="kb-btn" onClick={() => patch({ settingsOpen: true })}><IcGear size={13} />{t('settings')}</button>
@@ -204,7 +205,7 @@ function KanbanAppInner({ onClose, variant = 'fullscreen', projectTarget, onSend
           : state.issues.length === 0
             ? <EmptyState icon={<IcSync size={20} />} title={state.syncing ? t('autoSyncingTitle') : t('noSyncTitle')}
                 hint={state.syncing ? t('autoSyncingHint') : t('noSyncHint')}
-                action={<button className="kb-btn kb-btn--primary" disabled={state.syncing} onClick={() => void runSync()}>{syncingIcon}{state.syncing ? t('syncing') : t('sync')}</button>} />
+                action={<button className="kb-btn kb-btn--primary" disabled={state.syncing} onClick={() => patch({ syncOpen: true })}>{syncingIcon}{state.syncing ? t('syncing') : t('sync')}</button>} />
             : <>
                 <BoardToolbar search={state.search} onSearch={(v) => patch({ search: v })}
                   meta={state.meta?.lastSyncedAt ? t('syncedAt', { time: formatDateTime(state.meta.lastSyncedAt) }) : ''} />
@@ -214,6 +215,14 @@ function KanbanAppInner({ onClose, variant = 'fullscreen', projectTarget, onSend
 
       {state.settingsOpen
         ? <SettingsModal settings={state.settings} onClose={() => patch({ settingsOpen: false })} onSave={saveSettings} /> : null}
+      {state.syncOpen
+        ? <SyncModal projectKey={active?.projectKey ?? ''} defaultJql={state.settings?.jira?.jql ?? ''} target={state.currentProjectId ?? undefined}
+            onClose={() => patch({ syncOpen: false })}
+            onSynced={(result) => {
+              patch({ syncOpen: false })
+              void load(undefined, true)
+              toast(t('syncDone', { total: result.total, added: result.added, updated: result.updated }))
+            }} /> : null}
       {state.createOpen
         ? <CreateModal target={state.currentProjectId ?? undefined} onClose={() => patch({ createOpen: false })} onCreated={() => { patch({ createOpen: false }); void load(undefined, true) }} /> : null}
       {state.detailKey

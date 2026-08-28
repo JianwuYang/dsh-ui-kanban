@@ -124,5 +124,5 @@ export const api = {
   gitlabLinkIssueToMr: (iid: number, mrIid: number, target?: string | { workspace?: string; cwd?: string }) => request<{ ok: boolean }>(withTarget(`/gitlab/issues/${iid}/mr`, target), { method: 'POST', ...json({ mrIid }) }),
   gitlabCloseIssue: (iid: number, target?: string | { workspace?: string; cwd?: string }) => request<{ ok: boolean }>(withTarget(`/gitlab/issues/${iid}/close`, target), { method: 'POST' }),
   gitlabCloseMr: (iid: number, target?: string | { workspace?: string; cwd?: string }) => request<{ ok: boolean }>(withTarget(`/gitlab/merge_requests/${iid}/close`, target), { method: 'POST' }),
-  syncPreview: (options?: { jql?: string; assigneeSelf?: boolean; reporterSelf?: boolean }) => request<{ total: number; issues: { key: string; summary: string }[] }>('/sync/preview', { method: 'POST', ...(options ? json(options) : {}) }),
+  syncPreview: (options?: { jql?: string; assigneeSelf?: boolean; reporterSelf?: boolean }, target?: string | { workspace?: string; cwd?: string }) => request<{ total: number; issues: { key: string; summary: string }[] }>(withTarget('/sync/preview', target), { method: 'POST', ...(options ? json(options) : {}) }),
 }

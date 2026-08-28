@@ -796,6 +796,117 @@ export function GitLabPanel({ onClose, projectId, jiraIssues }: {
   )
 }
 
+/* ------------------------------ 同步确认 ------------------------------ */
+
+/** 客户端 composeJql（与 host 侧 backend/types.composeJql 一致，用于预览展示）。 */
+function composeJqlPreview(projectKey: string, filter: string, assigneeSelf: boolean, reporterSelf: boolean): string {
+  let f = (filter ?? '').trim()
+  f = f.replace(/^project\s*=\s*[^\s]+(\s+AND\s+)?/i, '')
+  const parts = [`project = ${projectKey}`]
+  if (f) parts.push(f)
+  const self: string[] = []
+  if (assigneeSelf) self.push('assignee = currentUser()')
+  if (reporterSelf) self.push('reporter = currentUser()')
+  if (self.length) parts.push(self.length > 1 ? `(${self.join(' OR ')})` : self[0]!)
+  return parts.join(' AND ')
+}
+
+/**
+ * 同步确认弹窗：可编辑 JQL（默认取设置里的 jql）、只看我的负责人/我报告的开关、
+ * 300ms 防抖的实时预览（预览查询 + 匹配的 issue 列表 + 总数），确认后才真正同步。
+ */
+export function SyncModal({ projectKey, defaultJql, target, onClose, onSynced }: {
+  projectKey: string; defaultJql: string; target?: string
+  onClose: () => void; onSynced: (result: { total: number; added: number; updated: number }) => void
+}): React.ReactElement {
+  const [jql, setJql] = React.useState(defaultJql)
+  const [assigneeSelf, setAssigneeSelf] = React.useState(true)
+  const [reporterSelf, setReporterSelf] = React.useState(false)
+  const [preview, setPreview] = React.useState<{ total: number; issues: { key: string; summary: string }[] } | null>(null)
+  const [previewError, setPreviewError] = React.useState<string | null>(null)
+  const [loading, setLoading] = React.useState(false)
+  const [syncing, setSyncing] = React.useState(false)
+  const toast = useToast()
+  const t = useT()
+
+  // 查询/开关变化后 300ms 防抖刷新预览。
+  React.useEffect(() => {
+    const timer = setTimeout(async () => {
+      setLoading(true)
+      setPreviewError(null)
+      try {
+        setPreview(await api.syncPreview({ jql, assigneeSelf, reporterSelf }, target))
+      } catch (e) {
+        setPreviewError(e instanceof Error ? e.message : t('loadFailed'))
+        setPreview(null)
+      } finally {
+        setLoading(false)
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [jql, assigneeSelf, reporterSelf, target])
+
+  const confirm = async (): Promise<void> => {
+    setSyncing(true)
+    try {
+      const result = await api.sync({ jql, assigneeSelf, reporterSelf }, target)
+      onSynced({ total: result.total, added: result.added, updated: result.updated })
+    } catch (e) {
+      toast(e instanceof Error ? e.message : t('syncFailed'), 'error')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const previewQuery = composeJqlPreview(projectKey, jql, assigneeSelf, reporterSelf)
+  const issues = preview?.issues ?? []
+
+  return (
+    <Modal title={t('sync')} icon={<IcSync size={14} />} onClose={onClose} width="md"
+      footer={<>
+        <button className="kb-btn" onClick={onClose} disabled={syncing}>{t('cancel')}</button>
+        <button className="kb-btn kb-btn--primary" disabled={syncing} onClick={() => void confirm()}>{syncing ? t('syncing') : t('startSync')}</button>
+      </>}>
+      <div className="kb-form">
+        <Field label={t('fieldJql')}>
+          <textarea className="kb-input" rows={2} value={jql} onChange={(e) => setJql(e.target.value)} />
+        </Field>
+        <div className="kb-sync-opts">
+          <label className="kb-check"><input type="checkbox" checked={assigneeSelf} onChange={(e) => setAssigneeSelf(e.target.checked)} /> {t('assigneeSelf')}</label>
+          <label className="kb-check"><input type="checkbox" checked={reporterSelf} onChange={(e) => setReporterSelf(e.target.checked)} /> {t('reporterSelf')}</label>
+        </div>
+        <span className="kb-note">{t('syncSelfHint')}</span>
+        <div className="kb-field">
+          <span className="kb-field__label">{t('previewQuery')}</span>
+          <code className="kb-sync-preview">{previewQuery}</code>
+        </div>
+        <div className="kb-field">
+          <div className="kb-sync-head">
+            <span className="kb-field__label">{t('previewResult')}</span>
+            {preview && !loading ? <span className="kb-selectlist__count">{t('resultCount', { n: preview.total })}</span> : null}
+          </div>
+          {previewError ? <span className="kb-field__error">{previewError}</span>
+            : loading && !preview ? <span className="kb-note">{t('testing')}</span>
+            : issues.length === 0 ? <span className="kb-note">{t('resultEmpty')}</span>
+            : (
+              <div className="kb-sync-list">
+                {issues.map((i) => (
+                  <div className="kb-sync-item" key={i.key}>
+                    <span className="kb-sync-item__key">{i.key}</span>
+                    <span className="kb-sync-item__summary">{i.summary}</span>
+                  </div>
+                ))}
+                {preview && preview.total > issues.length
+                  ? <div className="kb-note">{t('resultMore', { n: preview.total - issues.length })}</div>
+                  : null}
+              </div>
+            )}
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 /* ------------------------------ issue 详情 ------------------------------ */
 
 /** 分配弹窗：负责人搜索 + 可选评论，一次提交。 */
