@@ -415,6 +415,12 @@ async function issuesRoute(
     const issue = await backend.move(active, key, transitionId, typeof body.comment === 'string' ? body.comment : undefined)
     return sendJson(res, 200, { ok: true, issue })
   }
+  if (method === 'POST' && segments[2] === 'assign') {
+    const name = typeof body.name === 'string' ? body.name.trim() : ''
+    if (!name) throw Object.assign(new Error('name is required.'), { code: 'error.assigneeRequired' })
+    const detail = await backend.assign(active, key, name, typeof body.comment === 'string' ? body.comment : undefined)
+    return sendJson(res, 200, detail)
+  }
   if (method === 'POST' && segments[2] === 'comments') {
     const bodyText = typeof body.body === 'string' ? body.body.trim() : ''
     if (!bodyText) throw Object.assign(new Error('Comment body is required.'), { code: 'error.commentRequired' })

@@ -217,7 +217,7 @@ function KanbanAppInner({ onClose, variant = 'fullscreen', projectTarget, onSend
       {state.createOpen
         ? <CreateModal target={state.currentProjectId ?? undefined} onClose={() => patch({ createOpen: false })} onCreated={() => { patch({ createOpen: false }); void load(undefined, true) }} /> : null}
       {state.detailKey
-        ? <DetailModal key={state.detailKey} issueKey={state.detailKey} onClose={() => patch({ detailKey: null })} onChanged={() => void load(undefined, true)} onSendToSession={onSendToSession} /> : null}
+        ? <DetailModal key={state.detailKey} issueKey={state.detailKey} target={state.currentProjectId ?? undefined} onClose={() => patch({ detailKey: null })} onChanged={() => void load(undefined, true)} onSendToSession={onSendToSession} /> : null}
       {state.gitlabOpen
         ? <GitLabPanel onClose={() => patch({ gitlabOpen: false })} projectId={state.currentProjectId} jiraIssues={state.issues} /> : null}
     </div>

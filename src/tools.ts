@@ -261,6 +261,23 @@ export function registerKanbanTools(
     },
   }))
 
+  ctx.tools.register(defineTool({
+    name: 'kanban-assign',
+    description: 'Assign a Jira issue to a user (by Jira username) and optionally add a comment alongside the assignment.',
+    parameters: {
+      key: { type: 'string', required: true, description: 'Jira issue key' },
+      assignee: { type: 'string', required: true, description: "Assignee's Jira username (display names are not accepted)" },
+      comment: { type: 'string', description: 'Optional comment added with the assignment' },
+      ...projectParams,
+    },
+    output: { schema: { type: 'json' }, render: (_a, v) => text(renderDetail(v as Record<string, unknown>)), presentationMeta: (_a, value) => ({ kind: 'kanban-detail', detail: value }) },
+    presentResult: (_a, r) => ({ card: 'generic', title: 'Issue assigned', content: r.content }),
+    async execute(args, exec) {
+      const project = backend.requireProject(args.project, cwdOf(exec))
+      return backend.assign(project, args.key, args.assignee, args.comment)
+    },
+  }))
+
   /* ---------------- gitlab ---------------- */
 
   ctx.tools.register(defineTool({

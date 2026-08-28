@@ -11,7 +11,7 @@ import {
   type CreateUserOption, type GitlabIssue, type GitlabListState, type GitlabMr,
   type JiraTransitionOption, type SettingsPayload,
 } from './api.ts'
-import { IcBranch, IcCheck, IcChevronDown, IcChevronLeft, IcChevronRight, IcClose, IcComment, IcExternalLink, IcGear, IcGitlab, IcImage, IcLink, IcPlus, IcSearch, IcSend, IcSync, IcTrash, IcWarning } from './icons.tsx'
+import { IcBranch, IcCheck, IcChevronDown, IcChevronLeft, IcChevronRight, IcClose, IcComment, IcExternalLink, IcGear, IcGitlab, IcImage, IcLink, IcPlus, IcSearch, IcSend, IcSync, IcTrash, IcUser, IcWarning } from './icons.tsx'
 import { Modal, useChoice, useConfirm } from './modal.tsx'
 import type { PromptContentPartLike } from './types.ts'
 import { Avatar, CopyButton, EmptyState, SegToggle, SkeletonCards, SkeletonDetail, StatusDot, formatDateTime } from './primitives.tsx'
@@ -798,9 +798,114 @@ export function GitLabPanel({ onClose, projectId, jiraIssues }: {
 
 /* ------------------------------ issue 详情 ------------------------------ */
 
-export function DetailModal({ issueKey, onClose, onChanged, onSendToSession }: {
+/** 分配弹窗：负责人搜索 + 可选评论，一次提交。 */
+function AssignModal({ issueKey, target, onClose, onAssigned }: {
+  issueKey: string; target?: string; onClose: () => void; onAssigned: () => void
+}): React.ReactElement {
+  const [name, setName] = React.useState('')
+  const [comment, setComment] = React.useState('')
+  const [busy, setBusy] = React.useState(false)
+  const [uploading, setUploading] = React.useState(false)
+  const [uploaded, setUploaded] = React.useState<string[]>([])
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const toast = useToast()
+  const t = useT()
+
+  // 图片先上传为 issue 附件，评论里插入 Jira 引用标记（同详情评论框）。
+  const handleUpload = async (file: File): Promise<void> => {
+    if (uploading) return
+    setUploading(true)
+    try {
+      const dataBase64 = await readFileAsBase64(file)
+      const res = await api.uploadAttachment(issueKey, { filename: file.name, mime: file.type, dataBase64 })
+      const token = `!${res.filename}|thumbnail!`
+      setComment((c) => (c ? `${c}\n${token}` : token))
+      setUploaded((l) => [...l, res.filename])
+    } catch (e) {
+      toast(e instanceof Error ? e.message : t('uploadFailed'), 'error')
+    } finally {
+      setUploading(false)
+    }
+  }
+  // 粘贴图片（Ctrl+V）→ 上传并插入引用。
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>): void => {
+    const files: File[] = []
+    const items = e.clipboardData?.items
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i]
+        if (item && item.type.startsWith('image/')) {
+          const f = item.getAsFile()
+          if (f) files.push(f)
+        }
+      }
+    }
+    if (!files.length && e.clipboardData?.files) {
+      for (const f of e.clipboardData.files) {
+        if (f.type.startsWith('image/')) files.push(f)
+      }
+    }
+    if (files.length) {
+      e.preventDefault()
+      for (const f of files) void handleUpload(f)
+    }
+  }
+  const submit = async (): Promise<void> => {
+    if (!name.trim()) return
+    setBusy(true)
+    try {
+      await api.assignIssue(issueKey, { name: name.trim(), comment: comment.trim() || undefined })
+      toast(t('assignedToast', { name }))
+      onAssigned()
+    } catch (e) {
+      toast(e instanceof Error ? e.message : t('assignFailed'), 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Modal title={t('assignIssueTitle')} icon={<IcUser size={14} />} onClose={onClose} width="md"
+      footer={<>
+        <button className="kb-btn" onClick={onClose}>{t('cancel')}</button>
+        <button className="kb-btn kb-btn--primary" disabled={busy || !name.trim()} onClick={() => void submit()}>{busy ? t('assigning') : t('assign')}</button>
+      </>}>
+      <div className="kb-form">
+        <Field label={t('assigneeLabel')} required>
+          <AssigneeField value={name} onChange={setName} target={target} />
+        </Field>
+        <Field label={t('assignCommentLabel')}>
+          <textarea className="kb-input" rows={3} value={comment} placeholder={t('assignCommentPlaceholder')}
+            onChange={(e) => setComment(e.target.value)} onPaste={handlePaste} />
+          {uploaded.length > 0 ? (
+            <div className="kb-composer__files">
+              {uploaded.map((f) => (
+                <span key={f} className="kb-composer__file">
+                  <IcImage size={11} />{f}
+                  <button type="button" className="kb-tag__x" aria-label={t('removeAttachAria', { name: f })} onClick={() => setUploaded((l) => l.filter((x) => x !== f))}><IcClose size={10} /></button>
+                </span>
+              ))}
+            </div>
+          ) : null}
+          <div className="kb-composer__bar">
+            <div className="kb-composer__left">
+              <input ref={fileInputRef} type="file" accept="image/*" hidden
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleUpload(f); e.target.value = '' }} />
+              <button className="kb-btn kb-btn--ghost kb-btn--sm" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
+                {uploading ? <IcSync size={12} className="kb-spin" /> : <IcImage size={12} />}{uploading ? t('uploading') : t('imageBtn')}
+              </button>
+              <span className="kb-note">{t('pasteHint')}</span>
+            </div>
+          </div>
+        </Field>
+      </div>
+    </Modal>
+  )
+}
+
+export function DetailModal({ issueKey, onClose, onChanged, onSendToSession, target }: {
   issueKey: string; onClose: () => void; onChanged: () => void
   onSendToSession?: (key: string, target: 'current' | 'new', images?: PromptContentPartLike[]) => Promise<void>
+  target?: string
 }): React.ReactElement {
   const [detail, setDetail] = React.useState<BoardIssueDetail | null>(null)
   const [comment, setComment] = React.useState('')
@@ -815,6 +920,7 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession }: {
   const choice = useChoice()
   const t = useT()
   const [sending, setSending] = React.useState(false)
+  const [assignOpen, setAssignOpen] = React.useState(false)
 
   // 丢进会话分析：确认发送位置（当前会话 / 新建会话）后经官方 prompt 入口发送。
   // 图片附件经 attachment-proxy 拉取后以官方 image content part（base64）随附。
@@ -933,6 +1039,7 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession }: {
       footer={detail ? (
         <>
           {onSendToSession ? <button className="kb-btn kb-btn--ghost" disabled={sending} onClick={() => void sendToSession()}><IcSend size={12} />{sending ? t('sending') : t('sendToSession')}</button> : null}
+          <button className="kb-btn kb-btn--ghost" onClick={() => setAssignOpen(true)}><IcUser size={12} />{t('assign')}</button>
           {detail.url ? <a className="kb-btn kb-btn--ghost" href={detail.url} target="_blank" rel="noreferrer noopener"><IcExternalLink size={12} />在 Jira 中打开</a> : null}
           <span className="kb-modal__foot-spacer" />
           {detail.canDelete ? <button className="kb-btn kb-btn--danger" onClick={() => void remove()}><IcTrash size={12} />删除</button> : null}
@@ -1029,6 +1136,7 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession }: {
         </div>
       )}
 
+      {assignOpen ? <AssignModal issueKey={issueKey} target={target} onClose={() => setAssignOpen(false)} onAssigned={() => { setAssignOpen(false); void loadDetail(); onChanged() }} /> : null}
       {lightbox ? <Lightbox images={lightbox.images} index={lightbox.index} onClose={() => setLightbox(null)} onNavigate={(i) => setLightbox((lb) => (lb ? { ...lb, index: i } : lb))} /> : null}
     </Modal>
   )

@@ -304,6 +304,13 @@ export class KanbanBackend {
   }
 
   /** Add a comment to an issue. */
+  /** Assign an issue to a user (Jira username), optionally with a comment; returns the updated detail. */
+  async assign(project: KanbanProject, key: string, username: string, comment?: string): Promise<BoardIssueDetail> {
+    const jiraSettings = this.requireJira(project)
+    await jira.assignIssue(jiraSettings, key, username, comment)
+    return this.issueDetail(project, key)
+  }
+
   async addComment(project: KanbanProject, key: string, body: string): Promise<void> {
     const jiraSettings = this.requireJira(project)
     await jira.addComment(jiraSettings, key, body)

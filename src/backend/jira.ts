@@ -371,6 +371,20 @@ export function buildComments(issue: JiraIssue): IssueComment[] {
   })
 }
 
+/** Assign an issue to a user (Jira username), optionally with a comment. */
+export async function assignIssue(
+  settings: JiraSettings,
+  key: string,
+  username: string,
+  comment?: string,
+): Promise<void> {
+  const client = createJiraClient(settings)
+  await client.issues.update({ issueKeyOrId: key, fields: { assignee: { name: username } } })
+  if (comment && comment.trim()) {
+    await client.issues.addComment({ issueKeyOrId: key, body: comment.trim() })
+  }
+}
+
 /** Add a comment to an issue (author = current user). */
 export async function addComment(
   settings: JiraSettings,

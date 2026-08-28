@@ -112,6 +112,7 @@ export const api = {
   getIssueTransitions: (key: string) => request<JiraTransitionOption[]>(`/issues/${encodeURIComponent(key)}/transitions`),
   transitionIssue: (key: string, transitionId: string, comment?: string) => request<{ ok: boolean; issue: BoardIssue }>(`/issues/${encodeURIComponent(key)}/transition`, { method: 'POST', ...json({ transitionId, ...(comment ? { comment } : {}) }) }),
   deleteIssue: (key: string) => request<{ ok: boolean; key: string }>(`/issues/${encodeURIComponent(key)}`, { method: 'DELETE' }),
+  assignIssue: (key: string, payload: { name: string; comment?: string }) => request<BoardIssueDetail>(`/issues/${encodeURIComponent(key)}/assign`, { method: 'POST', ...json(payload) }),
   addComment: (key: string, body: string) => request<{ ok: boolean }>(`/issues/${encodeURIComponent(key)}/comments`, { method: 'POST', ...json({ body }) }),
   uploadAttachment: (key: string, payload: { filename: string; mime: string; dataBase64: string }) => request<{ ok: boolean; filename: string }>(`/issues/${encodeURIComponent(key)}/attachments`, { method: 'POST', ...json(payload) }),
   gitlabIssues: (state: GitlabListState, search: string, target?: string | { workspace?: string; cwd?: string }) => request<GitlabIssue[]>(withTarget(`/gitlab/issues?state=${state}&search=${encodeURIComponent(search)}`, target)),

@@ -124,7 +124,7 @@ Jira / GitLab token 都是 `role('secret')`；GUI 卡片只编辑全局 host/tok
 
 ## 给 agent 的能力
 
-host 半边注册了 14 个模型可调用的工具。真实的 Jira/GitLab 操作（以及磁盘上的
+host 半边注册了 15 个模型可调用的工具。真实的 Jira/GitLab 操作（以及磁盘上的
 issue 缓存）都在 host 半边完成——浏览器拿不到任何 Jira/GitLab 凭据，token 是
 `role('secret')`，Web 侧永远不会回显。
 
@@ -139,6 +139,7 @@ issue 缓存）都在 host 半边完成——浏览器拿不到任何 Jira/GitLa
 | `kanban-move` | 通过工作流流转移动 issue。 |
 | `kanban-create` | 创建 Jira issue（并写入缓存）。 |
 | `kanban-comment` | 评论 issue。 |
+| `kanban-assign` | 把 issue 分配给用户（Jira 用户名），可顺带添加评论。 |
 | `kanban-gitlab-issues` | GitLab 议题（含链接的 Jira key 与 MR）。 |
 | `kanban-gitlab-mrs` | GitLab 合并请求（含关联 issue 与 Jira key）。 |
 | `kanban-gitlab-create-issue` | 从一个或多个 Jira 事项创建 GitLab 议题。 |

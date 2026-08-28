@@ -142,7 +142,7 @@ Opened from the session-header 「看板」button (`conversation.session.header.
 
 ## What it gives the agent
 
-The host half registers 14 model-callable tools. Real Jira/GitLab work (and the
+The host half registers 15 model-callable tools. Real Jira/GitLab work (and the
 on-disk issue cache) stays in the host half — nothing Jira/GitLab ships to the
 browser, and tokens are `role('secret')` so the web surface never echoes them.
 
@@ -157,6 +157,7 @@ browser, and tokens are `role('secret')` so the web surface never echoes them.
 | `kanban-move` | Move an issue via a workflow transition. |
 | `kanban-create` | Create a Jira issue (and cache it). |
 | `kanban-comment` | Comment on an issue. |
+| `kanban-assign` | Assign an issue to a user (Jira username), optionally with a comment. |
 | `kanban-gitlab-issues` | GitLab issues (with linked Jira keys + MR). |
 | `kanban-gitlab-mrs` | GitLab MRs (with issues + Jira keys). |
 | `kanban-gitlab-create-issue` | Create one GitLab issue from one or more Jira issues. |
