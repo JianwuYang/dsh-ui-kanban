@@ -86,3 +86,20 @@ export function avatarStyle(name: string): React.CSSProperties {
     background: `color-mix(in srgb, ${accent} 18%, transparent)`,
   }
 }
+
+/** 优先级主色（Highest/High/Critical/Blocker 高危；Low/Minor/Trivial 低危）。 */
+export function priorityAccent(priority: string | undefined | null): string {
+  const p = (priority ?? '').toLowerCase()
+  if (['highest', 'high', 'critical', 'blocker'].includes(p)) return '#dc2626'
+  if (['low', 'lowest', 'minor', 'trivial'].includes(p)) return '#0284c7'
+  if (['medium', 'normal', 'major'].includes(p)) return '#d97706'
+  return '#64748b'
+}
+
+/** 低饱和 tint 内联样式（14% 主色背景 + 主色文字），供 chip/tag 复用。 */
+export function tintStyle(accent: string): React.CSSProperties {
+  return {
+    color: accent,
+    background: `color-mix(in srgb, ${accent} 14%, transparent)`,
+  }
+}

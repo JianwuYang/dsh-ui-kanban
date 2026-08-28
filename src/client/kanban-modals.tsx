@@ -16,7 +16,7 @@ import { Modal, useChoice, useConfirm } from './modal.tsx'
 import type { PromptContentPartLike } from './types.ts'
 import { Avatar, CopyButton, EmptyState, SegToggle, SkeletonCards, SkeletonDetail, StatusDot, formatDateTime } from './primitives.tsx'
 import { t as translate, useT, type TKey } from './locales.ts'
-import { statusAccent } from './colors.ts'
+import { priorityAccent, statusAccent, tintStyle, typeAccent } from './colors.ts'
 import { useToast } from './toast.tsx'
 
 /* ------------------------------ 小部件 ------------------------------ */
@@ -939,9 +939,11 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession }: {
       {!detail ? <SkeletonDetail /> : (
         <div className="kb-detail" ref={contentRef}>
           <div className="kb-detail__meta">
-            <span className="kb-detail__chip"><StatusDot category={detail.status.category} name={t('statusChip', { name: detail.status.name })} /></span>
-            {detail.issueType ? <span className="kb-detail__chip">{t('typeChip', { name: detail.issueType })}</span> : null}
-            {detail.priority ? <span className={`kb-detail__chip ${priorityClsForChip(detail.priority)}`}>{t('priorityChip', { name: detail.priority })}</span> : null}
+            <span className="kb-detail__chip">
+              <StatusDot category={detail.status.category} name={t('statusChip', { name: detail.status.name })} color={statusAccent(detail.status.color, detail.status.name)} />
+            </span>
+            {detail.issueType ? <span className="kb-detail__chip" style={tintStyle(typeAccent(detail.issueType))}>{t('typeChip', { name: detail.issueType })}</span> : null}
+            {detail.priority ? <span className="kb-detail__chip" style={tintStyle(priorityAccent(detail.priority))}>{t('priorityChip', { name: detail.priority })}</span> : null}
             {detail.assignee ? <span className="kb-detail__chip"><Avatar name={detail.assignee} size="sm" />{detail.assignee}</span> : null}
           </div>
 
@@ -1026,14 +1028,6 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession }: {
       {lightbox ? <Lightbox images={lightbox.images} index={lightbox.index} onClose={() => setLightbox(null)} onNavigate={(i) => setLightbox((lb) => (lb ? { ...lb, index: i } : lb))} /> : null}
     </Modal>
   )
-}
-
-function priorityClsForChip(priority: string): string {
-  const p = priority.toLowerCase()
-  if (['highest', 'high', 'critical', 'blocker'].includes(p)) return 'kb-tag--high'
-  if (['low', 'lowest', 'minor', 'trivial'].includes(p)) return 'kb-tag--low'
-  if (['medium', 'normal', 'major'].includes(p)) return 'kb-tag--medium'
-  return ''
 }
 
 /** Jira 内联图从缩略图换到原图（经 host 代理）。 */
