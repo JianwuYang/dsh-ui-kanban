@@ -614,28 +614,86 @@ export class KanbanBackend {
     return gitlab.testGitlabConnection(settings)
   }
 
+  /** Read the local repo's checked-out branch; graceful `{ branch: null }` for non-git dirs. */
+  async gitCurrentBranch(project: KanbanProject): Promise<{ branch: string | null; detached: boolean; error?: string }> {
+    const dir = project.localRepo?.directory?.trim()
+    if (!dir) throw new Error(`workspace "${project.name}" has no local repo configured`)
+    // symbolic-ref 对 unborn 分支（零提交仓库）也能返回名字，失败时再用
+    // rev-parse 区分「不是 git 仓库」与「游离 HEAD」。
+    const head = await execGit(dir, ['symbolic-ref', '--quiet', '--short', 'HEAD'], 30_000)
+    if (head.code === 0) return { branch: head.stdout.trim() || null, detached: false }
+    const inside = await execGit(dir, ['rev-parse', '--is-inside-work-tree'], 30_000)
+    if (inside.code !== 0) return { branch: null, detached: false, error: head.stderr || inside.stderr || 'not a git repository' }
+    return { branch: null, detached: true, error: head.stderr || 'detached HEAD' }
+  }
+
+  /** List local + remote-tracking branch short names (deduped, local wins, current first). */
+  async gitListBranches(project: KanbanProject): Promise<{ branches: string[]; current: string | null; error?: string }> {
+    const dir = project.localRepo?.directory?.trim()
+    if (!dir) throw new Error(`workspace "${project.name}" has no local repo configured`)
+    // refs/heads 与 refs/remotes 分开列：本地分支名本身可含 '/'（feature/x），
+    // 不能按首个 '/' 切前缀；远程 ref 才是 <remote>/<branch>，剥第一段远程名。
+    const heads = await execGit(dir, ['for-each-ref', '--format=%(refname:short)', 'refs/heads'], 30_000)
+    const remotes = await execGit(dir, ['for-each-ref', '--format=%(refname:short)', 'refs/remotes'], 30_000)
+    if (heads.code !== 0 || remotes.code !== 0) {
+      return { branches: [], current: null, error: heads.stderr || remotes.stderr || 'git for-each-ref failed' }
+    }
+    const locals = new Set<string>()
+    const branches: string[] = []
+    for (const raw of heads.stdout.split('\n')) {
+      const name = raw.trim()
+      if (name === '' || name === 'HEAD' || !BRANCH_NAME_RE.test(name)) continue
+      locals.add(name)
+      branches.push(name)
+    }
+    for (const raw of remotes.stdout.split('\n')) {
+      const ref = raw.trim()
+      if (ref === '') continue
+      const slash = ref.indexOf('/')
+      if (slash === -1) continue
+      const name = ref.slice(slash + 1)
+      if (name === '' || name === 'HEAD' || !BRANCH_NAME_RE.test(name)) continue
+      if (locals.has(name)) continue // 本地已有同名分支：短名会命中本地分支，跳过远程
+      if (!branches.includes(name)) branches.push(name)
+    }
+    const head = await execGit(dir, ['symbolic-ref', '--quiet', '--short', 'HEAD'], 30_000)
+    const current = head.code === 0 ? (head.stdout.trim() || null) : null
+    branches.sort((a, b) => {
+      if (a === current) return -1
+      if (b === current) return 1
+      return a.localeCompare(b)
+    })
+    return { branches, current }
+  }
+
   /** Switch the project's local repo to a branch: `git fetch --all` then `git checkout`. */
   async gitCheckout(project: KanbanProject, branch: string): Promise<{ ok: boolean; branch: string; error?: string }> {
     const dir = project.localRepo?.directory?.trim()
     if (!dir) throw new Error(`workspace "${project.name}" has no local repo configured`)
     // Defense-in-depth: execFile 不经过 shell，这里再限制分支名字符（git 规则的精简版）。
-    if (!/^(?![-/])(?!.*\.\.)[A-Za-z0-9._/-]+(?<![./])$/.test(branch)) throw new Error(`invalid branch name: "${branch}"`)
-    const run = (args: string[]): Promise<{ code: number; stderr: string }> =>
-      new Promise((resolve) => {
-        execFile('git', ['-C', dir, ...args], { timeout: 60_000 }, (error, _stdout, stderr) => {
-          resolve({ code: error ? Number((error as { code?: unknown }).code) || 1 : 0, stderr: String(stderr ?? '').trim() })
-        })
-      })
+    if (!BRANCH_NAME_RE.test(branch)) throw new Error(`invalid branch name: "${branch}"`)
     // 先同步远端：刚在 GitLab 上新建的分支本地还不存在，fetch 后 `git checkout`
     // 的 DWIM 行为会自动建同名跟踪分支。
-    const fetched = await run(['fetch', '--quiet', '--all'])
-    const checked = await run(['checkout', branch])
+    const fetched = await execGit(dir, ['fetch', '--quiet', '--all'])
+    const checked = await execGit(dir, ['checkout', branch])
     if (checked.code !== 0) {
       const reason = checked.stderr || (fetched.code !== 0 ? fetched.stderr : '')
       return { ok: false, branch, error: reason || 'git checkout failed' }
     }
     return { ok: true, branch }
   }
+}
+
+/** git 分支名的白名单（git 规则的保守子集；execFile 不经 shell，此处再兜底）。 */
+const BRANCH_NAME_RE = /^(?![-/])(?!.*\.\.)[A-Za-z0-9._/-]+(?<![./])$/
+
+/** Run git in a directory with a bounded wait; resolves a code/stdout/stderr trio (never rejects). */
+function execGit(dir: string, args: string[], timeoutMs = 60_000): Promise<{ code: number; stdout: string; stderr: string }> {
+  return new Promise((resolve) => {
+    execFile('git', ['-C', dir, ...args], { timeout: timeoutMs }, (error, stdout, stderr) => {
+      resolve({ code: error ? Number((error as { code?: unknown }).code) || 1 : 0, stdout: String(stdout ?? ''), stderr: String(stderr ?? '').trim() })
+    })
+  })
 }
 
 /** Normalize a path for the workspace-path fallback match (no realpath here). */

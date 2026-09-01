@@ -243,6 +243,41 @@ a.kb-tag:hover { text-decoration: underline; text-underline-offset: 2px; }
 .kb-card__branch:active { transform: scale(.97); }
 .kb-card__branch svg { flex: none; }
 
+/* ---- 会话输入行分支 chip（conversation.input.left） ---- */
+.kb-branch-wrap { position: relative; display: inline-flex; align-items: center; flex: none; }
+.kb-branch-chip {
+  appearance: none; border: 1px solid var(--kb-border); background: var(--kb-surface);
+  color: var(--kb-text-sec); display: inline-flex; align-items: center; gap: 4px;
+  padding: 1px 8px; height: 22px; border-radius: var(--kb-radius-pill); cursor: pointer;
+  font: inherit; font-size: var(--kb-font-xs); line-height: 1; max-width: 180px;
+  transition: background var(--kb-transition), border-color var(--kb-transition), color var(--kb-transition);
+}
+.kb-branch-chip:hover:not(:disabled) { background: var(--kb-surface-raised); color: var(--kb-text); border-color: var(--kb-text-dim); }
+.kb-branch-chip:disabled { opacity: .6; cursor: default; }
+.kb-branch-chip--error { color: var(--kb-text-ter); }
+.kb-branch-chip__name { font-family: var(--kb-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.kb-branch-chip__chevron { display: inline-flex; color: var(--kb-text-ter); flex: none; }
+.kb-branch-chip svg { flex: none; }
+/* 弹层向上开（chip 贴着输入行底部） */
+.kb-branch-menu {
+  position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 1000;
+  min-width: 200px; max-width: 300px; max-height: 260px; overflow-y: auto;
+  padding: 4px; margin: 0;
+  background: var(--kb-surface); border: 1px solid var(--kb-border); border-radius: var(--kb-radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .2);
+}
+.kb-branch-menu__item {
+  width: 100%; appearance: none; border: 0; background: none; font: inherit; color: var(--kb-text);
+  display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 6px; cursor: pointer;
+  font-size: var(--kb-font-sm); text-align: left; transition: background var(--kb-transition);
+}
+.kb-branch-menu__item:hover:not(:disabled) { background: var(--dsw-alias-bg-module-platform); }
+.kb-branch-menu__item:disabled { opacity: .5; cursor: default; }
+.kb-branch-menu__item--on { color: var(--kb-primary); }
+.kb-branch-menu__check { display: inline-flex; flex: none; }
+.kb-branch-menu__name { font-family: var(--kb-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kb-branch-menu__empty { padding: 10px; text-align: center; font-size: var(--kb-font-xs); color: var(--kb-text-ter); }
+
 /* ---- 分组列表（应用内的唯一视图：按状态分组、可折叠） ---- */
 .kb-groups { display: flex; flex-direction: column; gap: 10px; }
 .kb-group {
@@ -716,6 +751,7 @@ a.kb-tag:hover { text-decoration: underline; text-underline-offset: 2px; }
 .kb-search__clear:focus-visible, .kb-lightbox__nav:focus-visible, .kb-lightbox__close:focus-visible,
 .kb-card__extlink:focus-visible, .kb-selectlist__item:focus-visible, a.kb-tag:focus-visible,
 .kb-card__branch:focus-visible,
+.kb-branch-chip:focus-visible, .kb-branch-menu__item:focus-visible,
 .kkb-discard:focus-visible, .kkb-save:focus-visible, .kkb-reset:focus-visible {
   outline: 2px solid var(--kb-primary); outline-offset: 2px;
 }

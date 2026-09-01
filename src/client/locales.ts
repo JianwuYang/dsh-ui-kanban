@@ -51,6 +51,8 @@ export const zh = {
   emptyGroup: '暂无 issue', noMatchGroup: '无匹配的 issue', openCardAria: '打开 {key} {summary}',
   switchBranchTitle: '切换分支', switchBranchPick: '多个合并请求关联了该 issue，选择要切换的分支：',
   branchSwitched: '已切换到 {branch}', branchSwitchFailed: '切换分支失败',
+  branchNotRepo: '非 git 仓库', branchDetached: '游离 HEAD', branchLoading: '读取分支…',
+  branchLoadFailed: '分支读取失败', branchListEmpty: '没有本地分支', currentBranchTitle: '当前分支：{branch}',
   // 设置
   settingsTitle: '设置', tabJira: 'Jira', tabGitlab: 'GitLab',
   fieldBaseUrl: 'Base URL', fieldApiToken: 'API Token', fieldProjectKey: 'Project Key', fieldJql: 'JQL 过滤',
@@ -154,6 +156,8 @@ export const en: Record<TKey, string> = {
   emptyGroup: 'No issues', noMatchGroup: 'No matching issues', openCardAria: 'Open {key} {summary}',
   switchBranchTitle: 'Switch branch', switchBranchPick: 'Multiple merge requests reference this issue — pick a branch to switch to:',
   branchSwitched: 'Switched to {branch}', branchSwitchFailed: 'Failed to switch branch',
+  branchNotRepo: 'Not a git repo', branchDetached: 'Detached HEAD', branchLoading: 'Reading branch…',
+  branchLoadFailed: 'Failed to read branch', branchListEmpty: 'No local branches', currentBranchTitle: 'Current branch: {branch}',
   settingsTitle: 'Settings', tabJira: 'Jira', tabGitlab: 'GitLab',
   fieldBaseUrl: 'Base URL', fieldApiToken: 'API Token', fieldProjectKey: 'Project Key', fieldJql: 'JQL filter',
   tokenPlaceholder: '(leave blank to keep the saved token)', projectKeyPlaceholder: 'PROJ', jqlPlaceholder: '(blank = all)',

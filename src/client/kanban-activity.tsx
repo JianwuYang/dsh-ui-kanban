@@ -120,7 +120,7 @@ const noopSubscribe = (): (() => void) => () => {}
 const noopGetSnapshot = (): SessionListStateLike => EMPTY_SESSION_STATE
 
 /** The workspace path (cwd) for a session id, read from the sessions snapshot. */
-function useSessionCwd(sessions: ObservableSnapshotLike<SessionListStateLike> | undefined, sessionId: string | undefined): string | undefined {
+export function useSessionCwd(sessions: ObservableSnapshotLike<SessionListStateLike> | undefined, sessionId: string | undefined): string | undefined {
   const state = React.useSyncExternalStore(
     sessions === undefined ? noopSubscribe : sessions.subscribe,
     sessions === undefined ? noopGetSnapshot : sessions.getSnapshot,

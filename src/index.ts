@@ -20,7 +20,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import { settingsNamespace, type SettingsScope } from '@deepseek-ai/dsh-settings'
+import { type SettingsScope } from '@deepseek-ai/dsh-settings'
 import { Config, type Config as KanbanConfig } from './config.ts'
 import { KanbanBackend, type WorkspaceLike, type WorkspaceProvider } from './service.ts'
 import { registerKanbanTools } from './tools.ts'
@@ -59,7 +59,7 @@ export function apply(ctx: Context, config: KanbanConfig): void {
   let scope: SettingsScope<KanbanConfig> | undefined
 
   ctx.inject(['settings'], (sctx) => {
-    const scoped = sctx.settings.register(settingsNamespace(NAMESPACE), Config, { base: config })
+    const scoped = sctx.settings.register(NAMESPACE, Config, { base: config })
     scope = scoped
     configSource = () => scoped.get()
     // settings 服务卸载时回退到 composition entry（或插件自身卸载），保持无 settings

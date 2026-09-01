@@ -14,6 +14,7 @@ import { bindLocale } from './locales.ts'
 import { registerConfigCard } from './config-card.ts'
 import { registerKanbanToolview } from './kanban-toolview.ts'
 import { registerKanbanActivity, registerKanbanHeader } from './kanban-activity.tsx'
+import { registerChatBranch } from './chat-branch.tsx'
 
 /** 依赖的服务：slots 就绪后本插件才会加载。 */
 export const inject = ['slots']
@@ -30,4 +31,5 @@ export function apply(ctx: Context): void {
   registerKanbanToolview(ctx)
   registerKanbanActivity(ctx)
   registerKanbanHeader(ctx)
+  registerChatBranch(ctx)
 }

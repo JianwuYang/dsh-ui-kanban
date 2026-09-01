@@ -125,5 +125,7 @@ export const api = {
   gitlabCloseIssue: (iid: number, target?: string | { workspace?: string; cwd?: string }) => request<{ ok: boolean }>(withTarget(`/gitlab/issues/${iid}/close`, target), { method: 'POST' }),
   gitlabCloseMr: (iid: number, target?: string | { workspace?: string; cwd?: string }) => request<{ ok: boolean }>(withTarget(`/gitlab/merge_requests/${iid}/close`, target), { method: 'POST' }),
   gitCheckout: (branch: string, target?: string | { workspace?: string; cwd?: string }) => request<{ ok: boolean; branch: string; error?: string }>(withTarget('/git/checkout', target), { method: 'POST', ...json({ branch }) }),
+  gitCurrentBranch: (target?: string | { workspace?: string; cwd?: string }) => request<{ branch: string | null; detached: boolean; error?: string }>(withTarget('/git/current-branch', target)),
+  gitBranches: (target?: string | { workspace?: string; cwd?: string }) => request<{ branches: string[]; current?: string | null; error?: string }>(withTarget('/git/branches', target)),
   syncPreview: (options?: { jql?: string; assigneeSelf?: boolean; reporterSelf?: boolean }, target?: string | { workspace?: string; cwd?: string }) => request<{ total: number; issues: { key: string; summary: string }[] }>(withTarget('/sync/preview', target), { method: 'POST', ...(options ? json(options) : {}) }),
 }

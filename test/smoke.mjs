@@ -4,6 +4,8 @@
 import assert from 'node:assert/strict'
 import os from 'node:os'
 import path from 'node:path'
+import { mkdtempSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { name, inject, apply, registerKanbanApi } from '../lib/index.js'
 import { KanbanBackend } from '../lib/index.js'
 
@@ -119,15 +121,75 @@ assert.equal(typeof boardTool.execute, 'function')
 
   // 用最小 ctx 触发 client apply，验证各表面能注册而不抛错。
   let injected = 0
+  const registeredSlotNames = []
   const clientCtx = {
     slots: {
       inject(_name, cb) { injected += 1; return cb() },
-      register(opts) { assert.ok(opts && typeof opts.name === 'string', 'register should receive options.name'); return () => {} },
+      register(opts) { assert.ok(opts && typeof opts.name === 'string', 'register should receive options.name'); registeredSlotNames.push(opts.name); return () => {} },
     },
     get() { return undefined }, // 无 settingsScope —— 各表面应优雅降级
   }
   exportsObj.apply(clientCtx)
   assert.ok(injected >= 4, `client should inject at least 4 surfaces, got ${injected}`)
+  assert.ok(registeredSlotNames.includes('conversation.input.left'), 'branch chip should register into conversation.input.left')
+}
+
+// ---- host git 路由：在真实临时 git 仓库上验证 current-branch / branches ----
+{
+  const repoDir = mkdtempSync(path.join(os.tmpdir(), 'dsh-kanban-git-'))
+  const emptyDir = mkdtempSync(path.join(os.tmpdir(), 'dsh-kanban-git-empty-'))
+  const plainDir = mkdtempSync(path.join(os.tmpdir(), 'dsh-kanban-git-plain-'))
+  const g = (dir, args) => execFileSync('git', ['-C', dir, ...args], { stdio: 'ignore' })
+  g(repoDir, ['init', '-q', '-b', 'main'])
+  g(repoDir, ['config', 'user.email', 'smoke@example.com'])
+  g(repoDir, ['config', 'user.name', 'smoke'])
+  g(repoDir, ['commit', '--allow-empty', '-q', '-m', 'init'])
+  g(repoDir, ['branch', 'feature/x'])
+  // 直接造一个远程跟踪 ref（无网络）：验证 origin/ 前缀剥离。
+  g(repoDir, ['update-ref', 'refs/remotes/origin/remote-only', 'main'])
+  g(emptyDir, ['init', '-q', '-b', 'main'])
+
+  const gitWsList = [
+    { id: 'gitws', title: 'GitWS', path: repoDir },
+    { id: 'emptyws', title: 'EmptyWS', path: emptyDir },
+    { id: 'plainws', title: 'PlainWS', path: plainDir },
+  ]
+  const gitBackend = new KanbanBackend(() => config, () => ({ list: () => gitWsList, resolveByPath: (p) => gitWsList.find((w) => w.path === p) }))
+  let gitRegistered = null
+  registerKanbanApi({ inject(names, cb) { if (names.includes('webServer')) cb({ webServer: { register(route) { gitRegistered = route; return () => {} } } }); return () => {} } }, gitBackend, async () => {})
+  assert.ok(gitRegistered, 'git backend route should be registered')
+  const call = async (url) => {
+    let body = ''
+    const res = { writeHead() {}, end(b) { body = b } }
+    await gitRegistered.handler({ url, method: 'GET' }, res)
+    return JSON.parse(body)
+  }
+
+  const cur = await call(`/kanban-api/git/current-branch?cwd=${encodeURIComponent(repoDir)}`)
+  assert.equal(cur.branch, 'main')
+  assert.equal(cur.detached, false)
+
+  const list = await call(`/kanban-api/git/branches?cwd=${encodeURIComponent(repoDir)}`)
+  // current 排最前；feature/x 的 '/' 是本地分支名的一部分，origin/remote-only 剥离为 remote-only。
+  assert.deepEqual(list.branches, ['main', 'feature/x', 'remote-only'], 'branch list should strip origin/ prefixes')
+  assert.equal(list.current, 'main')
+
+  g(repoDir, ['checkout', '-q', '--detach'])
+  const det = await call(`/kanban-api/git/current-branch?cwd=${encodeURIComponent(repoDir)}`)
+  assert.equal(det.branch, null)
+  assert.equal(det.detached, true)
+  g(repoDir, ['checkout', '-q', 'main'])
+
+  const plain = await call(`/kanban-api/git/current-branch?cwd=${encodeURIComponent(plainDir)}`)
+  assert.equal(plain.branch, null)
+  assert.equal(plain.detached, false)
+  assert.ok(plain.error, 'non-git dir should report an error')
+
+  const empty = await call(`/kanban-api/git/current-branch?cwd=${encodeURIComponent(emptyDir)}`)
+  assert.equal(empty.branch, 'main', 'unborn branch name should be readable')
+  const emptyList = await call(`/kanban-api/git/branches?cwd=${encodeURIComponent(emptyDir)}`)
+  assert.deepEqual(emptyList.branches, [])
+  assert.equal(emptyList.current, 'main')
 }
 
 console.log('smoke ok')

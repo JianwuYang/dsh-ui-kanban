@@ -9,9 +9,8 @@
  * 解析值，因此保存后立即生效。项目的 Jira / GitLab 连接配置用 kanban-configure
  * 工具配置（涉及密钥，GUI 卡片只管理全局 host/token 与公共开关）。
  *
- * 关于"开箱即用"：卡片在任何状态下都渲染。harness 的 Web 网关只把白名单内的 settings
- * 命名空间暴露给设置面板（WEB_SETTINGS_NAMESPACES），第三方命名空间不在名单时
- * settings.describe 回答 settings-not-exposed——此时卡片渲染"未暴露"说明。
+ * 关于"开箱即用"：卡片在任何状态下都渲染。settings 服务不存在时渲染"未挂载"说明；
+ * 命名空间注册成功但当前连接只读（memory 模式）等情况下渲染"未暴露"说明。
  * @module dsh-kanban/client/config-card
  */
 
@@ -247,18 +246,23 @@ class CardForm {
 }
 
 export function registerConfigCard(ctx: Context): void {
-  let form: CardForm | undefined
-  const settingsScope: SettingsScopeBinderLike | undefined = ctx.get('settingsScope')
-  if (settingsScope === undefined) {
-    console.warn(`[${NAMESPACE}] settingsScope service absent; the config card shows the unmounted state`)
-  } else {
-    form = new CardForm(settingsScope.bind({ namespace: NAMESPACE }))
-  }
-
-  ctx.slots.inject('settings.plugin.item', () => ctx.slots.register(
-    { name: 'settings.plugin.item', key: NAMESPACE },
-    () => React.createElement(ConfigCard, { form }),
-  ))
+  // settingsScope 由 harness 的 ui-settings 客户端插件提供。不写进本插件的
+  // inject（那样没有 settings UI 的环境整个客户端半边都会加载失败），也不能在
+  // apply 时立即 ctx.get：cordis 按依赖序加载，此刻 ui-settings 可能尚未就绪，
+  // 会拿到 undefined 并把卡片永久建成「未挂载」。改为在插槽实际挂载时惰性读取——
+  // settings 壳（ui-settings-general）自己 inject 了 settingsScope，渲染插件
+  // 卡片时服务必然已加载；服务确实不存在时仍退化为未挂载占位卡片。
+  ctx.slots.inject('settings.plugin.item', () => {
+    const settingsScope: SettingsScopeBinderLike | undefined = ctx.get('settingsScope')
+    if (settingsScope === undefined) {
+      console.warn(`[${NAMESPACE}] settingsScope service absent; the config card shows the unmounted state`)
+    }
+    const form = settingsScope === undefined ? undefined : new CardForm(settingsScope.bind({ namespace: NAMESPACE }))
+    return ctx.slots.register(
+      { name: 'settings.plugin.item', key: NAMESPACE },
+      () => React.createElement(ConfigCard, { form }),
+    )
+  })
 }
 
 function ConfigCard({ form }: { form: CardForm | undefined }): React.ReactElement | null {

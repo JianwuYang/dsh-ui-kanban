@@ -503,7 +503,10 @@ async function gitlabRoute(
 
 /* -------------------------------- git --------------------------------- */
 
-/** POST /git/checkout — switch the workspace's local repo to a branch. */
+/**
+ * /git/* — workspace local-repo git ops. `POST /git/checkout` switches branch;
+ * the two GETs feed the chat input-row branch chip (current branch + list).
+ */
 async function gitRoute(
   backend: KanbanBackend,
   segments: string[],
@@ -517,6 +520,12 @@ async function gitRoute(
     const branch = typeof body.branch === 'string' ? body.branch.trim() : ''
     if (!branch) throw new Error('branch is required.')
     return sendJson(res, 200, await backend.gitCheckout(active, branch))
+  }
+  if (segments[1] === 'current-branch' && method === 'GET') {
+    return sendJson(res, 200, await backend.gitCurrentBranch(active))
+  }
+  if (segments[1] === 'branches' && method === 'GET') {
+    return sendJson(res, 200, await backend.gitListBranches(active))
   }
   sendJson(res, 404, { error: 'not found' })
 }
