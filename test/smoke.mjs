@@ -11,7 +11,7 @@ import { KanbanBackend } from '../lib/index.js'
 
 // Workspace provider used by the backend (no harness registry in the smoke).
 const WS = [{ id: 'default', title: 'Default', path: '/tmp/ws-default' }]
-const workspaces = () => ({ list: () => WS, resolveByPath: (p) => WS.find((w) => w.path === p) })
+const workspaces = () => ({ list: () => WS })
 
 const config = {
   dataDir: path.join(os.tmpdir(), `dsh-kanban-smoke-${process.pid}`),
@@ -82,16 +82,114 @@ const meta = await backend.syncMeta(active)
 assert.equal(meta.issueCount, 0)
 assert.deepEqual(await backend.listIssues(active), [])
 
+// ---- 工作区归属：sessionId 是权威来源，cwd 只是兜底 ----
+{
+  const twoWs = () => ({
+    list: () => [
+      { id: 'ws-a', title: 'A', path: '/tmp/ws-a', sessionIds: ['sess-a'] },
+      { id: 'ws-b', title: 'B', path: '/tmp/ws-b', sessionIds: ['sess-b'] },
+    ],
+  })
+  const b = new KanbanBackend(() => config, twoWs)
+  assert.equal(b.workspaceForSession('sess-b')?.id, 'ws-b')
+  assert.equal(b.workspaceForSession('nope'), undefined)
+  // 会话归属优先于 cwd：cwd 指错（或非规范路径）也不会串到别的工作区。
+  assert.equal(b.requireProject(undefined, '/tmp/ws-a', 'sess-b').id, 'ws-b')
+  // 没有 session 时才按 cwd，最后才回退第一个工作区。
+  assert.equal(b.requireProject(undefined, '/tmp/ws-b').id, 'ws-b')
+  assert.equal(b.requireProject(undefined, '/tmp/unknown').id, 'ws-a')
+  assert.equal(b.requireProject(undefined, undefined, 'sess-b').id, 'ws-b')
+}
+
 // ---- /kanban-api 桥：webServer 组合时注册前缀路由 ----
 {
   let registered = null
-  const wsCtx = { webServer: { register(route) { registered = route; return () => {} } } }
+  const wsCtx = {
+    webServer: { register(route) { registered = route; return () => {} } },
+    // cordis 的 Context.effect 收集 register() 返回的 disposer；最小 ctx 里同样收下。
+    effect(body) { const dispose = body(); return () => { if (typeof dispose === 'function') dispose() } },
+  }
   const injectCtx = { inject(names, cb) { if (names.includes('webServer')) cb(wsCtx); return () => {} } }
   registerKanbanApi(injectCtx, backend, async () => {})
   assert.ok(registered, 'webServer route should be registered')
   assert.equal(registered.kind, 'prefix')
   assert.equal(registered.path, '/kanban-api')
   assert.equal(typeof registered.handler, 'function')
+}
+
+// ---- /kanban-api 信任围栏：connection 拒绝时原样转发 401/403 ----
+{
+  let registered = null
+  const wsCtx = {
+    webServer: { register(route) { registered = route; return () => {} } },
+    effect(body) { const dispose = body(); return () => { if (typeof dispose === 'function') dispose() } },
+  }
+  const forbiddenCtx = {
+    inject(names, cb) { if (names.includes('webServer')) cb(wsCtx); return () => {} },
+    get(name) { return name === 'connection' ? { requestRejection: () => 403 } : undefined },
+  }
+  registerKanbanApi(forbiddenCtx, backend, async () => {})
+  let status = 0
+  let body = ''
+  const res = { writeHead(code) { status = code }, end(b) { body = b } }
+  await registered.handler({ url: '/kanban-api/state', method: 'GET', headers: { host: 'evil.example' } }, res)
+  assert.equal(status, 403, 'a rejected request must not reach the route body')
+  assert.equal(body, 'forbidden')
+}
+
+// ---- /kanban-api 信任围栏：connection 放行时正常响应 ----
+{
+  let registered = null
+  const wsCtx = {
+    webServer: { register(route) { registered = route; return () => {} } },
+    effect(body) { const dispose = body(); return () => { if (typeof dispose === 'function') dispose() } },
+  }
+  const allowedCtx = {
+    inject(names, cb) { if (names.includes('webServer')) cb(wsCtx); return () => {} },
+    get(name) { return name === 'connection' ? { requestRejection: () => undefined } : undefined },
+  }
+  registerKanbanApi(allowedCtx, backend, async () => {})
+  let status = 0
+  let body = ''
+  const res = { writeHead(code) { status = code }, end(b) { body = b } }
+  await registered.handler({ url: '/kanban-api/state', method: 'GET', headers: { host: '127.0.0.1:3080' } }, res)
+  assert.equal(status, 200, 'an accepted request must reach the route body')
+  assert.equal(JSON.parse(body).projects.length, 1)
+}
+
+// ---- /kanban-api：?session= 选择工作区，已删除的手工项目端点返回 404 ----
+{
+  let registered = null
+  const wsCtx = {
+    webServer: { register(route) { registered = route; return () => {} } },
+    effect(body) { const dispose = body(); return () => { if (typeof dispose === 'function') dispose() } },
+  }
+  const twoWs = () => ({
+    list: () => [
+      { id: 'ws-a', title: 'A', path: '/tmp/ws-a', sessionIds: ['sess-a'] },
+      { id: 'ws-b', title: 'B', path: '/tmp/ws-b', sessionIds: ['sess-b'] },
+    ],
+  })
+  const twoBackend = new KanbanBackend(() => config, twoWs)
+  registerKanbanApi(
+    { inject(names, cb) { if (names.includes('webServer')) cb(wsCtx); return () => {} }, get() { return undefined } },
+    twoBackend,
+    async () => {},
+  )
+  const call = async (url, method = 'GET') => {
+    let status = 0
+    let raw = ''
+    const res = { writeHead(code) { status = code }, end(b) { raw = b } }
+    // Minimal IncomingMessage: an empty async-iterable body lets readJson() run.
+    const req = { url, method, headers: { host: '127.0.0.1:3080' }, async *[Symbol.asyncIterator]() {} }
+    await registered.handler(req, res)
+    return { status, body: raw ? JSON.parse(raw) : undefined }
+  }
+  assert.equal((await call('/kanban-api/projects')).body.currentProjectId, 'ws-a', 'no target => first workspace')
+  assert.equal((await call('/kanban-api/projects?session=sess-b')).body.currentProjectId, 'ws-b', 'session selects its workspace')
+  assert.equal((await call('/kanban-api/projects?cwd=%2Ftmp%2Fws-b')).body.currentProjectId, 'ws-b', 'cwd still selects by path')
+  assert.equal((await call('/kanban-api/projects', 'POST')).status, 404, 'manual project create is gone')
+  assert.equal((await call('/kanban-api/issues/AIPS-1/transitions')).status, 404, 'the separate transitions endpoint is gone')
 }
 
 // ---- 配置 schema 规则（经由工具输出 schema 间接验证 defineTool 编译） ----
@@ -127,6 +225,8 @@ assert.equal(typeof boardTool.execute, 'function')
       inject(_name, cb) { injected += 1; return cb() },
       register(opts) { assert.ok(opts && typeof opts.name === 'string', 'register should receive options.name'); registeredSlotNames.push(opts.name); return () => {} },
     },
+    // cordis 的 ctx.inject(deps, cb)：本插件用它在 locale 就绪后绑定（无 locale 时优雅降级）。
+    inject(names, cb) { if (names.includes('locale')) cb({ get: () => undefined }); return () => {} },
     get() { return undefined }, // 无 settingsScope —— 各表面应优雅降级
   }
   exportsObj.apply(clientCtx)
@@ -154,9 +254,21 @@ assert.equal(typeof boardTool.execute, 'function')
     { id: 'emptyws', title: 'EmptyWS', path: emptyDir },
     { id: 'plainws', title: 'PlainWS', path: plainDir },
   ]
-  const gitBackend = new KanbanBackend(() => config, () => ({ list: () => gitWsList, resolveByPath: (p) => gitWsList.find((w) => w.path === p) }))
+  const gitBackend = new KanbanBackend(() => config, () => ({ list: () => gitWsList }))
   let gitRegistered = null
-  registerKanbanApi({ inject(names, cb) { if (names.includes('webServer')) cb({ webServer: { register(route) { gitRegistered = route; return () => {} } } }); return () => {} } }, gitBackend, async () => {})
+  registerKanbanApi({
+    inject(names, cb) {
+      if (names.includes('webServer')) {
+        cb({
+          webServer: { register(route) { gitRegistered = route; return () => {} } },
+          effect(body) { const dispose = body(); return () => { if (typeof dispose === 'function') dispose() } },
+        })
+      }
+      return () => {}
+    },
+    // 无 connection 服务 = 不做信任围栏（与组合里没有 connection 时一致）。
+    get() { return undefined },
+  }, gitBackend, async () => {})
   assert.ok(gitRegistered, 'git backend route should be registered')
   const call = async (url) => {
     let body = ''

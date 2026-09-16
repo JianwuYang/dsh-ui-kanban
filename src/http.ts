@@ -33,21 +33,46 @@ interface WebServerLike {
 export function registerKanbanApi(ctx: Context, backend: KanbanBackend, writeConfig: (patch: Partial<Config>) => Promise<void>): void {
   ctx.inject(['webServer'], (wctx) => {
     const ws = (wctx as unknown as { webServer: WebServerLike }).webServer
-    ws.register({
+    // Registered through ctx.effect so the route's disposer is tied to this
+    // plugin's fiber: a bare register() leaks the entry and a later re-register
+    // (profile hot reload / plugin restart) dies on "duplicate prefix route".
+    wctx.effect(() => ws.register({
       kind: 'prefix',
       path: '/kanban-api',
-      handler: (req, res) => handle(backend, writeConfig, req, res),
-    })
+      handler: (req, res) => handle(ctx, backend, writeConfig, req, res),
+    }), 'dsh-kanban: /kanban-api route')
   })
 }
 
+/**
+ * Host/Origin + browser-auth fence, borrowed from the `connection` service that
+ * guards the harness's own `/api` route. `/kanban-api` can mutate Jira/GitLab,
+ * run `git checkout`, and write settings, so a DNS-rebound page must not reach
+ * it. The service is optional: without it (a composition with a web server but
+ * no connection) the route behaves as before.
+ */
+function requestRejection(ctx: Context, req: IncomingMessage): 401 | 403 | undefined {
+  const connection = ctx.get('connection') as
+    | { requestRejection?: (request: { headers: IncomingMessage['headers'] }) => 401 | 403 | undefined }
+    | undefined
+  return connection?.requestRejection?.(req)
+}
+
 async function handle(
+  ctx: Context,
   backend: KanbanBackend,
   writeConfig: (patch: Partial<Config>) => Promise<void>,
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
   try {
+    const rejection = requestRejection(ctx, req)
+    if (rejection !== undefined) {
+      res.writeHead(rejection)
+      res.end(rejection === 401 ? 'unauthorized' : 'forbidden')
+      return
+    }
+
     const url = new URL(req.url ?? '/', 'http://localhost')
     const segments = url.pathname.replace(/^\/kanban-api\/?/, '').split('/').filter(Boolean)
     const query = url.searchParams
@@ -62,7 +87,7 @@ async function handle(
     // try/catch and sendError() can return a JSON error body (a bare
     // `return routeX(...)` would leak the rejection to the webserver, which
     // answers a body-less 400).
-    if (segments[0] === 'projects') return await projectsRoute(backend, writeConfig, segments, method, query, body, res)
+    if (segments[0] === 'projects') return await projectsRoute(backend, segments, method, query, res)
     if (segments[0] === 'settings') return await settingsRoute(backend, writeConfig, segments, method, query, body, res)
     if (segments[0] === 'sync') return await syncRoute(backend, segments, method, query, body, res)
     if (segments[0] === 'issues') return await issuesRoute(backend, segments, method, query, body, res)
@@ -165,27 +190,30 @@ async function attachmentProxyRoute(
 
 /**
  * Resolve the project a request targets. `?workspace=`/`?project=` pick an
- * explicit workspace (id/title/path); `?cwd=` names the session's workspace
- * path; absent, the first workspace is used. Throws "not configured" when no
- * project can be resolved.
+ * explicit workspace (id/title/path); `?session=` names the caller's session
+ * (the registry's ownership truth); `?cwd=` names the session's workspace path;
+ * absent, the first workspace is used. Throws "not configured" when no project
+ * can be resolved.
  */
 function requireRouteProject(backend: KanbanBackend, query: URLSearchParams): KanbanProject {
   const ref = query.get('workspace')?.trim() || query.get('project')?.trim()
   const cwd = query.get('cwd')?.trim()
+  const session = query.get('session')?.trim()
   const project = ref
     ? backend.requireProject(ref)
-    : cwd
-      ? backend.requireProject(undefined, cwd)
+    : session || cwd
+      ? backend.requireProject(undefined, cwd, session)
       : backend.activeProject()
   if (!project) throw Object.assign(new Error('no kanban project configured'), { code: 'error.notConfigured' })
   return project
 }
 
-async function projectsPayload(backend: KanbanBackend, target?: { workspace?: string | null; cwd?: string | null }): Promise<{ projects: ProjectSummary[]; currentProjectId: string | null }> {
+async function projectsPayload(backend: KanbanBackend, target?: { workspace?: string | null; cwd?: string | null; session?: string | null }): Promise<{ projects: ProjectSummary[]; currentProjectId: string | null }> {
   const projects = await backend.listProjects()
   const firstId = projects[0]?.id ?? null
   let currentProjectId = firstId
-  if (target?.cwd) currentProjectId = backend.resolveProject(undefined, target.cwd)?.id ?? firstId
+  if (target?.session) currentProjectId = backend.resolveProject(undefined, target.cwd ?? undefined, target.session)?.id ?? firstId
+  else if (target?.cwd) currentProjectId = backend.resolveProject(undefined, target.cwd)?.id ?? firstId
   else if (target?.workspace) currentProjectId = backend.resolveProject(target.workspace)?.id ?? firstId
   return { projects, currentProjectId }
 }
@@ -209,65 +237,26 @@ async function bootstrap(backend: KanbanBackend) {
 
 /* ----------------------------- projects ---------------------------- */
 
+/**
+ * GET `/projects` only. Projects are derived from DSH workspaces, so the manual
+ * create/rename/activate/delete endpoints the pre-workspace model needed were
+ * removed (the bundled client stopped calling them long ago); a workspace's
+ * override is written by the `kanban-configure` tool and the settings card.
+ */
 async function projectsRoute(
   backend: KanbanBackend,
-  writeConfig: (patch: Partial<Config>) => Promise<void>,
   segments: string[],
   method: string,
   query: URLSearchParams,
-  body: Record<string, unknown>,
   res: ServerResponse,
 ): Promise<void> {
   const id = segments[1]
-  if (method === 'GET' && id === undefined) return sendJson(res, 200, await projectsPayload(backend, { workspace: query.get('workspace'), cwd: query.get('cwd') }))
-
-  // POST /projects — set a workspace's override (projects are workspace-derived).
-  if (method === 'POST' && id === undefined) {
-    const wsRef = (typeof body.workspace === 'string' && body.workspace.trim()) || (typeof body.project === 'string' && body.project.trim())
-    if (!wsRef) throw Object.assign(new Error('workspace is required (projects are workspace-derived)'), { code: 'error.workspaceRequired' })
-    const derived = backend.requireProject(wsRef)
-    const name = typeof body.name === 'string' ? body.name.trim() : ''
-    const config = backend.config()
-    const overrides = config.projects.map((p) => ({ ...p }))
-    let entry = overrides.find((p) => p.id === derived.id)
-    if (!entry) {
-      entry = { id: derived.id }
-      overrides.push(entry)
-    }
-    if (name) entry.name = name
-    // Optionally copy another override's connection field.
-    const srcId = typeof body.fromProjectId === 'string' ? body.fromProjectId.trim() : ''
-    if (srcId) {
-      const src = config.projects.find((p) => p.id === srcId)
-      if (src) {
-        if (src.jira) entry.jira = { ...src.jira }
-        if (src.gitlab) entry.gitlab = { ...src.gitlab }
-        if (src.localRepo) entry.localRepo = { ...src.localRepo }
-      }
-    }
-    await writeConfig({ projects: overrides })
-    return sendJson(res, 200, await projectsPayload(backend))
-  }
-
-  // PUT /projects/<id> — rename a workspace's override.
-  if (method === 'PUT' && id !== undefined && segments[2] === undefined) {
-    const name = typeof body.name === 'string' ? body.name.trim() : ''
-    if (!name) throw Object.assign(new Error('Project name is required.'), { code: 'error.projectNameRequired' })
-    const config = backend.config()
-    await writeConfig({ projects: config.projects.map((p) => p.id === id ? { ...p, name } : p) })
-    return sendJson(res, 200, await projectsPayload(backend))
-  }
-
-  // POST /projects/<id>/activate — projects follow the session workspace; keep for API compat.
-  if (method === 'POST' && id !== undefined && segments[2] === 'activate') {
-    return sendJson(res, 200, await projectsPayload(backend))
-  }
-
-  // DELETE /projects/<id> — drop a workspace's override (revert to global defaults).
-  if (method === 'DELETE' && id !== undefined && segments[2] === undefined) {
-    const config = backend.config()
-    await writeConfig({ projects: config.projects.filter((p) => p.id !== id) })
-    return sendJson(res, 200, await projectsPayload(backend))
+  if (method === 'GET' && id === undefined) {
+    return sendJson(res, 200, await projectsPayload(backend, {
+      workspace: query.get('workspace'),
+      cwd: query.get('cwd'),
+      session: query.get('session'),
+    }))
   }
   sendJson(res, 404, { error: 'not found' })
 }
@@ -304,27 +293,10 @@ async function settingsRoute(
   if (segments[1] === 'assignees' && method === 'GET') {
     return sendJson(res, 200, await backend.assignees(project, query.get('q') ?? ''))
   }
-  // PUT /settings/global — merge-only write of the GLOBAL jira/gitlab host+token.
-  // The config card uses this: it can't read the redacted token, so a blank must
-  // never replace the host-side secret, and this must not touch a workspace
-  // override (projectKey/jql/gitlab.project).
-  if (segments[1] === 'global' && segments[2] === undefined && method === 'PUT') {
-    const config = backend.config()
-    const next: Partial<Config> = {}
-    if (body.jira) {
-      const cur = config.jira ?? { baseUrl: '', apiToken: '' }
-      const j = body.jira as { baseUrl?: string; apiToken?: string }
-      next.jira = { baseUrl: j.baseUrl ?? cur.baseUrl, apiToken: j.apiToken || cur.apiToken }
-    }
-    if (body.gitlab) {
-      const cur = config.gitlab ?? { baseUrl: '', apiToken: '' }
-      const g = body.gitlab as { baseUrl?: string; apiToken?: string }
-      next.gitlab = { baseUrl: g.baseUrl ?? cur.baseUrl, apiToken: g.apiToken || cur.apiToken }
-    }
-    if (!next.jira && !next.gitlab) throw new Error('nothing to update')
-    await writeConfig(next)
-    return sendJson(res, 200, { ok: true })
-  }
+  // Global host+token writes go through the settings namespace itself
+  // (`settingsScope.mutate` path ops in the config card), so there is no
+  // `/settings/global` route: a path-addressed `set` touches one leaf and can
+  // never clobber the redacted secret the browser cannot read.
 
   if (method === 'GET' && segments[1] === undefined) {
     return sendJson(res, 200, { configured: Boolean(project.jira?.projectKey && project.jira?.baseUrl), settings: { jira: project.jira, gitlab: project.gitlab, localRepo: project.localRepo } })
@@ -413,7 +385,8 @@ async function issuesRoute(
   }
   if (key === undefined) { sendJson(res, 404, { error: 'not found' }); return }
 
-  if (method === 'GET' && segments[2] === 'transitions') return sendJson(res, 200, await backend.transitions(active, key))
+  // Transitions ship inside `GET /issues/<key>` (the detail payload), so the
+  // separate `/transitions` endpoint had no caller and was removed.
   if (method === 'GET' && segments[2] === undefined) return sendJson(res, 200, await backend.issueDetail(active, key))
   if (method === 'POST' && segments[2] === 'transition') {
     const transitionId = typeof body.transitionId === 'string' ? body.transitionId : ''

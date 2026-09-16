@@ -1,9 +1,8 @@
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
-import { existsSync } from 'node:fs'
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
-import type { BoardIssue, JiraSettings, SyncMeta } from './types.ts'
+import type { BoardIssue, SyncMeta } from './types.ts'
 
 /**
  * Local JSON cache for the synced board data. The dsh host is the only party
@@ -106,38 +105,5 @@ export function createKanbanStore(dataDir: string) {
     async writeLinks(projectId: string, links: LinksFile): Promise<void> {
       await atomicWrite(path.join(projectDir(dataDir, projectId), 'links.json'), links)
     },
-
-    /** Best-effort removal of a project's data folder. */
-    async removeProject(projectId: string): Promise<void> {
-      try {
-        await rm(projectDir(dataDir, projectId), { recursive: true, force: true })
-      } catch {
-        // Ignore cleanup failures — the registry no longer references it.
-      }
-    },
-
-    /** Ensure the data directory exists (used at startup for diagnostics). */
-    async ensure(): Promise<void> {
-      await mkdir(dataDir, { recursive: true })
-    },
   }
 }
-
-/** Jira section reader that tolerates a legacy flat shape / absent section. */
-export function readJiraFromSettings(settings: AppSettingsLike | null): JiraSettings | null {
-  const r = settings as { baseUrl?: string; jira?: JiraSettings } | null
-  if (!r) return null
-  if (r.jira) return r.jira
-  if (r.baseUrl) return r as JiraSettings
-  return null
-}
-
-/** Minimal structural view of AppSettings used by the legacy reader. */
-export interface AppSettingsLike {
-  jira?: JiraSettings
-  gitlab?: { baseUrl?: string }
-  localRepo?: { directory?: string }
-}
-
-/** Convenience re-export so consumers import storage + types in one go. */
-export { existsSync }

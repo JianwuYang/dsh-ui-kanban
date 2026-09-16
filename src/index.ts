@@ -8,7 +8,7 @@
  * **Jira / GitLab host + token**（以及 `dataDir/allowSelfSigned/verbose`），每个
  * 工作区只在其覆盖里写差异项（`projectKey`/`jql`、GitLab `project` 路径、本地仓库
  * 目录），未写则继承全局。[当前项目] 跟随**当前会话的工作区**（工具用
- * `exec.agent.session.cwd` 解析），不再有全局 activeProject。
+ * `exec.agent.session.header.cwd` 解析），不再有全局 activeProject。
  *
  * host 半边注册了一组模型可调用的工具（src/tools.ts），让 agent 能真正操作看板：
  * 同步、读板、读详情、流转、创建、评论，以及 GitLab 的 issue / MR / 关联操作。数据
@@ -39,8 +39,8 @@ export const NAMESPACE = 'dsh-kanban'
 /** 依赖的服务：tools 就绪后本插件才会加载。 */
 export const inject = ['tools']
 
-/** 工作区注册表服务键（新→旧）。 */
-const WORKSPACE_KEYS = ['workspaceRegistry', 'workspace'] as const
+/** 工作区注册表服务键（host 半边只由 dsh-workspace 提供 `workspaceRegistry`）。 */
+const WORKSPACE_KEYS = ['workspaceRegistry'] as const
 
 /**
  * 插件主体：把所有注册挂在 ctx 上，随插件卸载自动回收。
@@ -68,26 +68,28 @@ export function apply(ctx: Context, config: KanbanConfig): void {
   })
 
   const getWorkspaces = (): WorkspaceProvider => {
-    const registry = (ctx.get(WORKSPACE_KEYS[0])
-      ?? ctx.get(WORKSPACE_KEYS[1])) as {
-      list(): WorkspaceLike[]
-      resolveByPath?(path: string): Promise<WorkspaceLike | undefined>
+    const registry = ctx.get(WORKSPACE_KEYS[0]) as {
+      list(): {
+        id: unknown
+        title: string
+        path: string
+        sessionIds?: readonly unknown[]
+      }[]
     } | undefined
     // Synchronous list view (registry.list() is synchronous).
-    const list = (): WorkspaceLike[] => {
-      try {
-        return (registry?.list() ?? []).map((w) => ({ id: String(w.id), title: w.title, path: w.path }))
-      } catch {
-        return []
-      }
-    }
     return {
-      list,
-      resolveByPath: (path) => {
-        const all = list()
-        const p = (path ?? '').trim().replace(/\/+$/, '')
-        if (!p) return undefined
-        return all.find((w) => w.path === p || w.path.replace(/\/+$/, '') === p)
+      list: (): WorkspaceLike[] => {
+        try {
+          return (registry?.list() ?? []).map((w) => ({
+            id: String(w.id),
+            title: w.title,
+            path: w.path,
+            // sessionIds 是工作区归属的权威来源（见 KanbanBackend.workspaceForSession）。
+            sessionIds: (w.sessionIds ?? []).map(String),
+          }))
+        } catch {
+          return []
+        }
       },
     }
   }

@@ -6,9 +6,27 @@ import type { BoardIssue, BoardStatus, GitlabListState, StatusCategory } from '.
 
 const text = (s: string) => [{ type: 'text' as const, text: s }]
 
-/** Read the session's workspace path from the tool run context (loose, runtime-only). */
-const cwdOf = (exec: unknown): string | undefined =>
-  (exec as { agent?: { session?: { cwd?: string } } } | undefined)?.agent?.session?.cwd
+/**
+ * Read the caller session's identity from the tool run context.
+ *
+ * `cwd` and `id` both live on the session HEADER (`ISession.header`), which is
+ * the durable creation record; there is no `session.cwd` getter.
+ */
+const headerOf = (exec: unknown): { cwd?: string; id?: string } | undefined =>
+  (exec as { agent?: { session?: { header?: { cwd?: string; id?: string } } } } | undefined)?.agent?.session?.header
+
+const cwdOf = (exec: unknown): string | undefined => headerOf(exec)?.cwd
+
+/**
+ * The session id is the stronger project selector: the workspace registry's
+ * ordered `sessionIds` is the ownership truth, while a session cwd may be
+ * spelled differently from the workspace's canonical path.
+ */
+const sessionIdOf = (exec: unknown): string | undefined => {
+  const header = headerOf(exec)
+  if (header?.id !== undefined) return header.id
+  return (exec as { agent?: { id?: string } } | undefined)?.agent?.id
+}
 
 const CATEGORY_ORDER: readonly StatusCategory[] = ['to do', 'in progress', 'done', 'unknown']
 
@@ -27,7 +45,14 @@ function buildColumns(issues: BoardIssue[]): { name: string; category: StatusCat
       const cb = CATEGORY_ORDER.indexOf(b.status.category)
       return ca !== cb ? ca - cb : a.status.name.localeCompare(b.status.name)
     })
-    .map((e) => ({ name: e.status.name, category: e.status.category, color: e.status.color, issues: e.issues }))
+    .map((e) => ({
+      name: e.status.name,
+      category: e.status.category,
+      // Only spread a present color: `{ color: undefined }` is not lossless
+      // JSON, and the tool registry rejects such an output value outright.
+      ...(e.status.color === undefined ? {} : { color: e.status.color }),
+      issues: e.issues,
+    }))
 }
 
 /** Minimal schema for a Jira board result (the model sees the shape). */
@@ -82,7 +107,8 @@ export function registerKanbanTools(
     presentResult: (_a, r) => ({ card: 'generic', title: 'Kanban projects', content: r.content }),
     async execute(_args, exec) {
       const projects = await backend.listProjects()
-      const current = cwdOf(exec) ? backend.workspaceForPath(cwdOf(exec))?.id : undefined
+      const current = backend.workspaceForSession(sessionIdOf(exec))?.id
+        ?? (cwdOf(exec) ? backend.workspaceForPath(cwdOf(exec))?.id : undefined)
       return { projects, currentWorkspaceId: current ?? null }
     },
   }))
@@ -94,7 +120,7 @@ export function registerKanbanTools(
     output: { schema: { type: 'json' }, render: (_a, v) => text(String(v)) },
     presentResult: (_a, r) => ({ card: 'generic', title: 'Active project', content: r.content }),
     async execute(args, exec) {
-      const project = backend.requireProject(args.project, cwdOf(exec))
+      const project = backend.requireProject(args.project, cwdOf(exec), sessionIdOf(exec))
       return { ok: true, project: { id: project.id, name: project.name } }
     },
   }))
@@ -156,7 +182,7 @@ export function registerKanbanTools(
     output: { schema: syncSchema, render: (_a, v) => text(renderSync(String(v.updated), String(v.added), String(v.total))), presentationMeta: (_a, v) => ({ kind: 'kanban-sync', result: v }) },
     presentResult: (_a, r) => ({ card: 'generic', title: 'Sync complete', content: r.content }),
     async execute(args, exec) {
-      const project = backend.requireProject(args.project, cwdOf(exec))
+      const project = backend.requireProject(args.project, cwdOf(exec), sessionIdOf(exec))
       const result = await backend.sync(project, {
         jql: args.jql,
         assigneeSelf: args.assigneeSelf,
@@ -174,7 +200,7 @@ export function registerKanbanTools(
     presentCall: () => ({ card: 'generic', title: 'Kanban board', content: text('reading board…') }),
     presentResult: (_a, r) => ({ card: 'generic', title: 'Kanban board', content: r.content }),
     async execute(args, exec) {
-      const project = backend.requireProject(args.project, cwdOf(exec))
+      const project = backend.requireProject(args.project, cwdOf(exec), sessionIdOf(exec))
       const issues = await backend.listIssues(project)
       const meta = await backend.syncMeta(project)
       return {
@@ -197,7 +223,7 @@ export function registerKanbanTools(
     output: { schema: { type: 'json' }, render: (_a, v) => text(renderDetail(v as Record<string, unknown>)), presentationMeta: (_a, value) => ({ kind: 'kanban-detail', detail: value }) },
     presentResult: (_a, r) => ({ card: 'generic', title: 'Issue detail', content: r.content }),
     async execute(args, exec) {
-      const project = backend.requireProject(args.project, cwdOf(exec))
+      const project = backend.requireProject(args.project, cwdOf(exec), sessionIdOf(exec))
       const detail = await backend.issueDetail(project, args.key)
       return { ...detail, transitions: detail.transitions.map((t) => ({ id: t.id, name: t.name, to: t.toStatus.name })) }
     },
@@ -215,7 +241,7 @@ export function registerKanbanTools(
     output: { schema: { type: 'json' }, render: (_a, v) => text(renderDetail(v as Record<string, unknown>)), presentationMeta: (_a, value) => ({ kind: 'kanban-detail', detail: value }) },
     presentResult: (_a, r) => ({ card: 'generic', title: 'Issue moved', content: r.content }),
     async execute(args, exec) {
-      const project = backend.requireProject(args.project, cwdOf(exec))
+      const project = backend.requireProject(args.project, cwdOf(exec), sessionIdOf(exec))
       const issue = await backend.move(project, args.key, args.transitionId, args.comment)
       return { ...issue }
     },
@@ -234,7 +260,7 @@ export function registerKanbanTools(
     output: { schema: { type: 'json' }, render: (_a, v) => text(String(v)) },
     presentResult: (_a, r) => ({ card: 'generic', title: 'Issue created', content: r.content }),
     async execute(args, exec) {
-      const project = backend.requireProject(args.project, cwdOf(exec))
+      const project = backend.requireProject(args.project, cwdOf(exec), sessionIdOf(exec))
       const fields: Record<string, unknown> = { project: { key: project.jira?.projectKey ?? '' } }
       if (args.issueType) fields.issuetype = { name: args.issueType }
       if (args.description) fields.description = args.description
@@ -255,7 +281,7 @@ export function registerKanbanTools(
     output: { schema: { type: 'json' }, render: (_a, v) => text(String(v)) },
     presentResult: (_a, r) => ({ card: 'generic', title: 'Comment added', content: r.content }),
     async execute(args, exec) {
-      const project = backend.requireProject(args.project, cwdOf(exec))
+      const project = backend.requireProject(args.project, cwdOf(exec), sessionIdOf(exec))
       await backend.addComment(project, args.key, args.body)
       return { ok: true, key: args.key }
     },
@@ -273,7 +299,7 @@ export function registerKanbanTools(
     output: { schema: { type: 'json' }, render: (_a, v) => text(renderDetail(v as Record<string, unknown>)), presentationMeta: (_a, value) => ({ kind: 'kanban-detail', detail: value }) },
     presentResult: (_a, r) => ({ card: 'generic', title: 'Issue assigned', content: r.content }),
     async execute(args, exec) {
-      const project = backend.requireProject(args.project, cwdOf(exec))
+      const project = backend.requireProject(args.project, cwdOf(exec), sessionIdOf(exec))
       return backend.assign(project, args.key, args.assignee, args.comment)
     },
   }))
@@ -291,7 +317,7 @@ export function registerKanbanTools(
     output: { schema: { type: 'json' }, render: (_a, v) => text(String(v)) },
     presentResult: (_a, r) => ({ card: 'generic', title: 'GitLab issues', content: r.content }),
     async execute(args, exec) {
-      const project = backend.requireProject(args.project, cwdOf(exec))
+      const project = backend.requireProject(args.project, cwdOf(exec), sessionIdOf(exec))
       return { project: project.name, issues: await backend.gitlabIssues(project, gitlabState(args.state), args.search ?? '') }
     },
   }))
@@ -307,7 +333,7 @@ export function registerKanbanTools(
     output: { schema: { type: 'json' }, render: (_a, v) => text(String(v)) },
     presentResult: (_a, r) => ({ card: 'generic', title: 'GitLab merge requests', content: r.content }),
     async execute(args, exec) {
-      const project = backend.requireProject(args.project, cwdOf(exec))
+      const project = backend.requireProject(args.project, cwdOf(exec), sessionIdOf(exec))
       return { project: project.name, merge_requests: await backend.gitlabMrs(project, gitlabState(args.state), args.search ?? '') }
     },
   }))
@@ -324,7 +350,7 @@ export function registerKanbanTools(
     output: { schema: { type: 'json' }, render: (_a, v) => text(String(v)) },
     presentResult: (_a, r) => ({ card: 'generic', title: 'GitLab issue created', content: r.content }),
     async execute(args, exec) {
-      const project = backend.requireProject(args.project, cwdOf(exec))
+      const project = backend.requireProject(args.project, cwdOf(exec), sessionIdOf(exec))
       const issue = await backend.gitlabCreateIssueFromJira(project, (args.jiras ?? []).map((j) => ({ key: j.key ?? '', summary: j.summary ?? '' })), args.title, args.description)
       return { ok: true, issue }
     },
@@ -344,7 +370,7 @@ export function registerKanbanTools(
     output: { schema: { type: 'json' }, render: (_a, v) => text(String(v)) },
     presentResult: (_a, r) => ({ card: 'generic', title: 'Merge request created', content: r.content }),
     async execute(args, exec) {
-      const project = backend.requireProject(args.project, cwdOf(exec))
+      const project = backend.requireProject(args.project, cwdOf(exec), sessionIdOf(exec))
       const mr = await backend.gitlabCreateMr(project, {
         sourceBranch: args.sourceBranch,
         ...(args.targetBranch ? { targetBranch: args.targetBranch } : {}),
@@ -367,7 +393,7 @@ export function registerKanbanTools(
     output: { schema: { type: 'json' }, render: (_a, v) => text(String(v)) },
     presentResult: (_a, r) => ({ card: 'generic', title: 'Linked Jira', content: r.content }),
     async execute(args, exec) {
-      const project = backend.requireProject(args.project, cwdOf(exec))
+      const project = backend.requireProject(args.project, cwdOf(exec), sessionIdOf(exec))
       return { ok: true, issue: await backend.gitlabLinkJira(project, args.iid, args.jiraKeys ?? []) }
     },
   }))

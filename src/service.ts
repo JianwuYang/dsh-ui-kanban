@@ -18,12 +18,13 @@ export interface WorkspaceLike {
   id: string
   title: string
   path: string
+  /** Ordered session ids the registry accounts to this workspace (ownership truth). */
+  sessionIds?: readonly string[]
 }
 
-/** How the backend enumerates/resolves workspaces (wraps the registry). */
+/** How the backend enumerates workspaces (wraps the registry). */
 export interface WorkspaceProvider {
   list(): WorkspaceLike[]
-  resolveByPath(path: string): WorkspaceLike | undefined
 }
 
 /**
@@ -102,19 +103,36 @@ export class KanbanBackend {
       ?? all.find((w) => normalizePath(w.path) === normalizePath(p))
   }
 
-  /** Resolve the active project: the workspace for `cwd`, else the first workspace. */
-  activeProject(cwd?: string): KanbanProject | null {
+  /**
+   * Resolve the workspace that OWNS a session. The registry's ordered
+   * `sessionIds` is the ownership truth: a session's `cwd` may be spelled
+   * differently from the workspace's realpath-canonical `path`, so path
+   * matching alone can miss.
+   */
+  workspaceForSession(sessionId?: string | null): WorkspaceLike | undefined {
+    const id = (sessionId ?? '').trim()
+    if (!id) return undefined
+    return this.workspaceList().find((w) => w.sessionIds?.includes(id))
+  }
+
+  /** Resolve the active project: the workspace owning `sessionId`/`cwd`, else the first. */
+  activeProject(cwd?: string, sessionId?: string | null): KanbanProject | null {
     const config = this.getConfig()
-    const ws = this.workspaceForPath(cwd) ?? this.workspaceList()[0]
+    const ws = this.workspaceForSession(sessionId) ?? this.workspaceForPath(cwd) ?? this.workspaceList()[0]
     if (!ws) return null
     return this.deriveProject(ws, config, this.overrideFor(ws.id))
   }
 
-  /** Resolve a project by id, name, title, or workspace path; empty => active. */
-  resolveProject(ref?: string | null, cwd?: string): KanbanProject | null {
+  /**
+   * Resolve a project by id, name, title, or workspace path; empty => active.
+   *
+   * An empty `ref` (the model naming no project) resolves against the caller's
+   * own session first, then its working directory, then the first workspace.
+   */
+  resolveProject(ref?: string | null, cwd?: string, sessionId?: string | null): KanbanProject | null {
     const config = this.getConfig()
     const r = (ref ?? '').trim()
-    if (!r) return this.activeProject(cwd)
+    if (!r) return this.activeProject(cwd, sessionId)
     const all = this.workspaceList()
     const byOverride = config.projects.find((p) => p.id === r || p.name === r)
     let ws: WorkspaceLike | undefined
@@ -128,8 +146,8 @@ export class KanbanBackend {
   }
 
   /** Resolve any project (id/name/path) or throw a helpful error. */
-  requireProject(ref?: string | null, cwd?: string): KanbanProject {
-    const project = this.resolveProject(ref, cwd)
+  requireProject(ref?: string | null, cwd?: string, sessionId?: string | null): KanbanProject {
+    const project = this.resolveProject(ref, cwd, sessionId)
     if (!project) throw new Error(`no kanban project for ${ref ? `"${ref}"` : 'this workspace'}`)
     return project
   }
@@ -330,12 +348,6 @@ export class KanbanBackend {
   async createMeta(project: KanbanProject, issueTypeId?: string): Promise<CreateMeta> {
     const jiraSettings = this.requireJira(project)
     return jira.fetchCreateMeta(jiraSettings, issueTypeId)
-  }
-
-  /** The transitions currently available for one issue. */
-  async transitions(project: KanbanProject, key: string): Promise<{ id: string; name: string; toStatus: BoardIssue['status'] }[]> {
-    const jiraSettings = this.requireJira(project)
-    return jira.toTransitionOptions(await jira.fetchTransitions(jiraSettings, key))
   }
 
   /** Delete an issue (reporter only) and drop it from the cache. */
@@ -602,16 +614,6 @@ export class KanbanBackend {
     const settings = this.requireGitlab(project)
     await gitlab.closeGitlabMr(settings, iid)
     return { ok: true }
-  }
-
-  async gitlabBranches(project: KanbanProject, query: string): Promise<string[]> {
-    const settings = this.requireGitlab(project)
-    return gitlab.searchGitlabBranches(settings, query)
-  }
-
-  async gitlabTest(project: KanbanProject): Promise<{ ok: boolean; user?: string | null; error?: string | null; recentBranches?: string[] }> {
-    const settings = this.requireGitlab(project)
-    return gitlab.testGitlabConnection(settings)
   }
 
   /** Read the local repo's checked-out branch; graceful `{ branch: null }` for non-git dirs. */
