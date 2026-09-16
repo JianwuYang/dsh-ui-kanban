@@ -12,12 +12,24 @@ export interface SettingsSnapshot {
   value: unknown
   user: unknown
   writable: boolean
+  /** 下一次写入的版本栅栏（Host 首次视图到达前为 undefined）。 */
+  revision?: number
 }
+
+/**
+ * 一次路径寻址写操作（dsh-settings 的 SettingsPathOpView）：
+ * `set` 在 path 处写入 value（自动创建中间对象），`unset` 删除该路径。
+ */
+export type SettingsPathOpLike =
+  | { op: 'set'; path: string[]; value: unknown }
+  | { op: 'unset'; path: string[] }
 
 /** 浏览器侧 settings scope 的最小面。 */
 export interface SettingsScopeLike {
   getSnapshot(): SettingsSnapshot
   subscribe(listener: () => void): () => void
+  /** 按路径写入/清除：嵌套字段（jira.baseUrl / jira.apiToken）用它，不碰同节其他键。 */
+  mutate(ops: readonly SettingsPathOpLike[], expectedRevision?: number): Promise<void>
   set(field: string, value: unknown): Promise<void>
   unset(field: string): Promise<void>
 }
@@ -115,8 +127,9 @@ export interface SessionFaceLike {
 }
 
 /**
- * workspaces 服务的最小面（dsh-client-runtime WorkspacesService 的子集）。
- * startSession() 无参 = 在当前会话工作区新建会话并打开（官方「新建会话」流程）。
+ * 新建会话的服务最小面：`startSession()` 在 `uiWorkspace`（ui-workspace 的
+ * 导航服务，无参 = 继承当前会话工作区、新建并打开）上；旧版 harness 把它放在
+ * `workspaces`（Workspace Controller）上，读取处两者都试。
  */
 export interface WorkspacesServiceLike {
   startSession(workspaceId?: string): void

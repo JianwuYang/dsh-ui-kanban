@@ -10,7 +10,9 @@
  * 工具配置（涉及密钥，GUI 卡片只管理全局 host/token 与公共开关）。
  *
  * 关于"开箱即用"：卡片在任何状态下都渲染。settings 服务不存在时渲染"未挂载"说明；
- * 命名空间注册成功但当前连接只读（memory 模式）等情况下渲染"未暴露"说明。
+ * 命名空间快照不可用（宿主未注册 / memory 只读连接）时渲染"不可用"说明。
+ * 注意：harness 早已取消设置命名空间白名单（WEB_SETTINGS_NAMESPACES 于 2026-08-12
+ * 删除，改为"注册即暴露"），因此宿主注册了 dsh-kanban 就能在设置页编辑。
  * @module dsh-kanban/client/config-card
  */
 
@@ -19,7 +21,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { NAMESPACE } from './constants.ts'
 import { IcChevronDown } from './icons.tsx'
 import { t, useT, type TKey } from './locales.ts'
-import type { SettingsScopeBinderLike, SettingsScopeLike } from './types.ts'
+import type { SettingsPathOpLike, SettingsScopeBinderLike, SettingsScopeLike } from './types.ts'
 
 type FieldKind = 'text' | 'checkbox' | 'host' | 'secret'
 
@@ -171,20 +173,22 @@ class CardForm {
 
   private plan(): PlannedWrite[] {
     const plan: PlannedWrite[] = []
-    const global: { jira?: Record<string, string>; gitlab?: Record<string, string> } = {}
-    let dirtyGlobal = false
+    const ops: SettingsPathOpLike[] = []
     for (const [field, staged] of this.staged) {
       const spec = this.spec(field)
       if (spec.kind === 'host' || spec.kind === 'secret') {
         const [parent, key] = field.split('.')
         if (parent === undefined || key === undefined) continue
-        const target = global[parent as 'jira' | 'gitlab'] ?? (global[parent as 'jira' | 'gitlab'] = {})
-        if (staged.kind === 'clear') { target[key] = ''; dirtyGlobal = true; continue }
+        // Path-addressed write: this touches exactly one leaf, so the workspace
+        // overrides and the other half of the section are untouched — and the
+        // redacted secret the browser never saw can never be clobbered.
+        const path = [parent, key]
+        if (staged.kind === 'clear') { ops.push({ op: 'unset', path }); continue }
         if (staged.kind !== 'edit') continue
-        if (spec.kind === 'host') { target[key] = staged.text; dirtyGlobal = true }
+        if (spec.kind === 'host') { ops.push({ op: 'set', path, value: staged.text }); continue }
         // A secret sends ONLY when the user typed a new value; blank keeps the
-        // host-side token (the browser never saw it and must not clobber it).
-        else if (staged.text !== '') { target[key] = staged.text; dirtyGlobal = true }
+        // host-side token.
+        if (staged.text !== '') ops.push({ op: 'set', path, value: staged.text })
         continue
       }
       if (staged.kind === 'toggle') { plan.push({ field, run: () => this.store(field, staged.value) }); continue }
@@ -192,7 +196,7 @@ class CardForm {
       if (staged.text === this.format(spec, this.sectionValue()[field])) continue
       plan.push({ field, run: staged.text === '' ? () => this.clear(field) : () => this.store(field, staged.text) })
     }
-    if (dirtyGlobal) plan.push({ field: '_global', run: () => this.saveGlobal(global) })
+    if (ops.length > 0) plan.push({ field: '_global', run: () => this.saveGlobal(ops) })
     return plan
   }
 
@@ -201,15 +205,16 @@ class CardForm {
     return this.stored(field) && this.sectionValue()[field] === value
   }
 
-  /** Merge-only write of the GLOBAL jira/gitlab host+token (keeps the redacted secret). */
-  private async saveGlobal(patch: { jira?: Record<string, string>; gitlab?: Record<string, string> }): Promise<boolean> {
+  /**
+   * Write the GLOBAL jira/gitlab host+token through the settings namespace's own
+   * path operations. A `set` writes one leaf and an `unset` reverts it to the
+   * composition layer, so neither can disturb the sibling fields nor the
+   * host-side secret that the browser is never shown.
+   */
+  private async saveGlobal(ops: SettingsPathOpLike[]): Promise<boolean> {
     try {
-      const res = await fetch('/kanban-api/settings/global', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
-      })
-      return res.ok
+      await this.scope.mutate(ops)
+      return true
     } catch {
       return false
     }
@@ -225,9 +230,21 @@ class CardForm {
     return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {}
   }
 
+  /**
+   * Whether the RAW user layer carries this field. The user document nests the
+   * connection sections, so a dotted field ('jira.baseUrl') must be walked part
+   * by part — a flat own-property check never matched and the "overridden" badge
+   * silently never appeared for the host/token rows.
+   */
   private stored(field: string): boolean {
     const user = this.scope.getSnapshot().user
-    return typeof user === 'object' && user !== null && Object.prototype.hasOwnProperty.call(user, field)
+    if (typeof user !== 'object' || user === null) return false
+    let node: unknown = user
+    for (const part of field.split('.')) {
+      if (typeof node !== 'object' || node === null || !Object.prototype.hasOwnProperty.call(node, part)) return false
+      node = (node as Record<string, unknown>)[part]
+    }
+    return true
   }
 
   private spec(field: string): FieldSpec {
@@ -281,7 +298,6 @@ function ConfigCard({ form }: { form: CardForm | undefined }): React.ReactElemen
       return statusCard(
         t('cardNotExposed'),
         t('cardNotExposedBody'),
-        t('cardNotExposedRemedy'),
       )
     }
     return statusCard(t('cardLoading'), t('cardLoadingBody'))

@@ -31,14 +31,14 @@ export function buildIssueCopyText(issue: IssueCopyView): string {
   if (issue.priority) lines.push(`${t('priorityChip', { name: issue.priority })}`)
   if (issue.assignee) lines.push(`${t('assigneeChip', { name: issue.assignee })}`)
   if (issue.reporter) lines.push(`${t('reporterChip', { name: issue.reporter })}`)
-  if (issue.url) lines.push(`${t('linkChip')}：${issue.url}`)
+  if (issue.url) lines.push(`${t('linkChip')}: ${issue.url}`)
 
   const desc = (issue.description ?? '').trim()
-  if (desc) lines.push('', `${t('descriptionLabel2')}：`, desc)
+  if (desc) lines.push('', `${t('descriptionLabel2')}:`, desc)
 
   const comments = (issue.comments ?? []).filter((c) => (c.body ?? '').trim().length > 0)
   if (comments.length > 0) {
-    lines.push('', `${t('comment')}：`)
+    lines.push('', `${t('comment')}:`)
     for (const c of comments) {
       const who = c.author ?? t('unknownAuthor')
       const when = c.created ? ` (${c.created})` : ''

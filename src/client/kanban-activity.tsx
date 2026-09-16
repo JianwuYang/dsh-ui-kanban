@@ -45,12 +45,22 @@ function closeKanban(): void { setBus({ open: false, sessionId: undefined }) }
 
 /** 注册 `shell.overlay` 面板（仅当 bus 打开时渲染，无常驻徽标）。 */
 export function registerKanbanActivity(ctx: Context): void {
-  const sessions = (ctx.get('sessions') as SessionsServiceLike | undefined)
-  const workspaces = (ctx.get('workspaces') as WorkspacesServiceLike | undefined)
-  ctx.slots.inject('shell.overlay', () => ctx.slots.register(
-    { name: 'shell.overlay', id: `${NAMESPACE}-panel`, order: 80, label: `dsh-kanban ${t('appBrand')}` },
-    () => React.createElement(KanbanFloatPanel, { sessions, workspaces }),
-  ))
+  // 两个服务都在插槽真正挂载时才读（cordis 的 ctx.get 对尚未 active 的服务返回
+  // undefined 且不会重读）：ui-layout 声明 shell.overlay 时它们必然已就绪。
+  //
+  // 新会话入口在 `uiWorkspace` 上（`workspaces` 是裸的 Workspace Controller，
+  // 只有 list/create/rename 等，没有 startSession）；保留 workspaces 兜底以兼容
+  // 把 startSession 放在 workspaces 上的旧 harness。发送发生在用户点击时，
+  // 因此按 getter 惰性解析，避免 apply 期拿到 undefined 后永久失败。
+  const workspacesOf = (): WorkspacesServiceLike | undefined =>
+    (ctx.get('uiWorkspace') ?? ctx.get('workspaces')) as WorkspacesServiceLike | undefined
+  ctx.slots.inject('shell.overlay', () => {
+    const sessions = ctx.get('sessions') as SessionsServiceLike | undefined
+    return ctx.slots.register(
+      { name: 'shell.overlay', id: `${NAMESPACE}-panel`, order: 80, label: `dsh-kanban ${t('appBrand')}` },
+      () => React.createElement(KanbanFloatPanel, { sessions, workspaces: workspacesOf }),
+    )
+  })
 }
 
 /** 注册 `conversation.session.header.utilities` 的「看板」图标按钮（session 作用域）。 */
@@ -83,27 +93,33 @@ function HeaderKanbanButton({ sessionId }: { sessionId?: string }): React.ReactE
 /** 面板正文：仅在 bus 打开时渲染，并实时跟随「当前会话」的工作区。
  *  直接把功能完整的 {@link KanbanApp}（variant='panel'）挂进来：
  *  工具栏 + 分组列表 + 详情/新建/GitLab/设置 弹窗一应俱全；弹窗是整屏浮层，
- *  不受窄面板限制。数据经 host 侧 `/kanban-api` 桥，按会话 cwd 定位工作区。
- *  「丢进会话分析」经官方 ISession.prompt / workspaces.startSession 发送。 */
+ *  不受窄面板限制。数据经 host 侧 `/kanban-api` 桥，按会话（session/cwd）定位工作区。
+ *  「丢进会话分析」经官方 ISession.prompt / uiWorkspace.startSession 发送。 */
 function KanbanFloatPanel({ sessions, workspaces }: {
-  sessions: SessionsServiceLike | undefined; workspaces: WorkspacesServiceLike | undefined
+  sessions: SessionsServiceLike | undefined; workspaces: () => WorkspacesServiceLike | undefined
 }): React.ReactElement | null {
   const busState = React.useSyncExternalStore(subscribeBus, getBus)
   const open = busState.open
   const openingCwd = useSessionCwd(sessions?.list, busState.sessionId)
-  const currentCwd = useCurrentSessionCwd(sessions?.list)
+  const current = useCurrentSession(sessions?.list)
 
-  // 实时跟随当前会话的工作区（cwd → 工作区 → 项目）；无当前会话时回退到打开按钮所属会话。
-  // cwd 变化时 KanbanApp 的 load 会重新按新 target 拉取项目。
-  const cwd = currentCwd ?? openingCwd
-  const projectTarget = React.useMemo(() => (cwd ? { cwd } : undefined), [cwd])
+  // 实时跟随当前会话的工作区（session/cwd → 工作区 → 项目）；无当前会话时回退到打开
+  // 按钮所属会话。session 优先、cwd 兜底：工作区归属的权威来源是注册表的 sessionIds，
+  // 而会话 cwd 的拼写未必等于工作区的 realpath 规范路径。
+  // target 变化时 KanbanApp 的 load 会重新按新 target 拉取项目。
+  const cwd = current?.cwd ?? openingCwd
+  const sessionId = current?.id ?? busState.sessionId
+  const projectTarget = React.useMemo(() => {
+    if (cwd === undefined && sessionId === undefined) return undefined
+    return { ...(cwd === undefined ? {} : { cwd }), ...(sessionId === undefined ? {} : { session: sessionId }) }
+  }, [cwd, sessionId])
 
   // 「丢进会话分析」回调：发送失败抛错（DetailModal 弹 error toast）；
   // 新建会话成功后直接关面板，用户立刻看到新会话。
   const onSendToSession = React.useCallback(async (key: string, target: 'current' | 'new', images?: PromptContentPartLike[]): Promise<void> => {
     const result = target === 'current'
       ? await sendToCurrentSession(sessions, key, images)
-      : await sendToNewSession(sessions, workspaces, key, images)
+      : await sendToNewSession(sessions, workspaces(), key, images)
     if (!result.ok) throw new Error(result.error ?? t('sendFailed'))
     if (target === 'new') closeKanban()
   }, [sessions, workspaces])
@@ -128,11 +144,13 @@ export function useSessionCwd(sessions: ObservableSnapshotLike<SessionListStateL
   return sessionId === undefined ? undefined : state.byId?.[sessionId]?.cwd
 }
 
-/** The workspace path (cwd) of the CURRENT session, read from the sessions snapshot. */
-function useCurrentSessionCwd(sessions: ObservableSnapshotLike<SessionListStateLike> | undefined): string | undefined {
+/** The CURRENTLY selected session (id + workspace path), read from the sessions snapshot. */
+function useCurrentSession(sessions: ObservableSnapshotLike<SessionListStateLike> | undefined): { id: string; cwd?: string } | undefined {
   const state = React.useSyncExternalStore(
     sessions === undefined ? noopSubscribe : sessions.subscribe,
     sessions === undefined ? noopGetSnapshot : sessions.getSnapshot,
   )
-  return state.current === undefined ? undefined : state.byId?.[state.current]?.cwd
+  const id = state.current
+  if (id === undefined) return undefined
+  return { id, ...(state.byId?.[id]?.cwd === undefined ? {} : { cwd: state.byId[id]!.cwd }) }
 }

@@ -10,7 +10,7 @@
  */
 
 import React from 'react'
-import { api, type BoardIssue, type GitlabMr, type ProjectSummary, type SettingsPayload, type SyncResult } from './api.ts'
+import { api, type BoardIssue, type GitlabMr, type ProjectTarget, type ProjectSummary, type SettingsPayload, type SyncResult } from './api.ts'
 import { BoardToolbar, IssueGroups } from './kanban-board.tsx'
 import { CreateModal, DetailModal, GitLabPanel, SettingsModal, SyncModal } from './kanban-modals.tsx'
 import { DialogsProvider } from './modal.tsx'
@@ -50,7 +50,7 @@ const initial: AppState = {
 /** 薄包装：应用内弹窗/toast 的 Provider 挂在最外层，KanbanAppInner 内部消费。 */
 export function KanbanApp(props: {
   onClose: () => void; variant?: 'fullscreen' | 'panel'
-  projectTarget?: string | { workspace?: string; cwd?: string }
+  projectTarget?: ProjectTarget
   onSendToSession?: (key: string, target: 'current' | 'new', images?: PromptContentPartLike[]) => Promise<void>
 }): React.ReactElement {
   return (
@@ -64,7 +64,7 @@ export function KanbanApp(props: {
 
 function KanbanAppInner({ onClose, variant = 'fullscreen', projectTarget, onSendToSession }: {
   onClose: () => void; variant?: 'fullscreen' | 'panel'
-  projectTarget?: string | { workspace?: string; cwd?: string }
+  projectTarget?: ProjectTarget
   onSendToSession?: (key: string, target: 'current' | 'new', images?: PromptContentPartLike[]) => Promise<void>
 }): React.ReactElement {
   const [state, setState] = React.useState<AppState>(initial)

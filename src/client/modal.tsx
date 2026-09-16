@@ -2,7 +2,7 @@
  * 应用内弹窗基础设施（替代原生 alert/confirm/prompt）：
  * - Modal：Esc 只关最顶层（模块级深度栈支持嵌套，如 GitLabPanel 内的子弹窗）、
  *   焦点陷阱 + 挂载时聚焦 + 卸载时恢复、body 滚动锁、进场/退场动画。
- * - ConfirmDialog / PromptDialog + DialogsProvider：返回 Promise，
+ * - ConfirmDialog / ChoiceDialog + DialogsProvider：返回 Promise，
  *   调用点保持原有的 async 流程。
  * @module dsh-kanban/client/modal
  */
@@ -121,7 +121,7 @@ export function Modal({ title, icon, children, footer, onClose, width = 'md' }: 
   )
 }
 
-/* ---------------- Confirm / Prompt 对话框 ---------------- */
+/* ---------------- Confirm / Choice 对话框 ---------------- */
 
 export interface ConfirmOptions {
   title: string
@@ -130,29 +130,19 @@ export interface ConfirmOptions {
   danger?: boolean
 }
 
-export interface PromptOptions {
-  title: string
-  label?: string
-  initial?: string
-  placeholder?: string
-  confirmLabel?: string
-}
-
 export interface ChoiceOption { value: string; label: string; primary?: boolean }
 export interface ChoiceOptions { title: string; message: string; options: ChoiceOption[] }
 
 type DialogState =
   | { key: number; kind: 'confirm'; opts: ConfirmOptions; resolve: (v: boolean) => void }
-  | { key: number; kind: 'prompt'; opts: PromptOptions; resolve: (v: string | null) => void }
   | { key: number; kind: 'choice'; opts: ChoiceOptions; resolve: (v: string | null) => void }
 
 interface DialogsApi {
   confirm: (opts: ConfirmOptions) => Promise<boolean>
-  prompt: (opts: PromptOptions) => Promise<string | null>
   choice: (opts: ChoiceOptions) => Promise<string | null>
 }
 
-const DialogsCtx = React.createContext<DialogsApi>({ confirm: async () => false, prompt: async () => null, choice: async () => null })
+const DialogsCtx = React.createContext<DialogsApi>({ confirm: async () => false, choice: async () => null })
 
 export function DialogsProvider({ children }: { children: React.ReactNode }): React.ReactElement {
   const [dialog, setDialog] = React.useState<DialogState | null>(null)
@@ -160,8 +150,6 @@ export function DialogsProvider({ children }: { children: React.ReactNode }): Re
 
   const confirm = React.useCallback((opts: ConfirmOptions): Promise<boolean> =>
     new Promise<boolean>((resolve) => setDialog({ key: ++seq.current, kind: 'confirm', opts, resolve })), [])
-  const prompt = React.useCallback((opts: PromptOptions): Promise<string | null> =>
-    new Promise<string | null>((resolve) => setDialog({ key: ++seq.current, kind: 'prompt', opts, resolve })), [])
   const choice = React.useCallback((opts: ChoiceOptions): Promise<string | null> =>
     new Promise<string | null>((resolve) => setDialog({ key: ++seq.current, kind: 'choice', opts, resolve })), [])
 
@@ -173,13 +161,10 @@ export function DialogsProvider({ children }: { children: React.ReactNode }): Re
   }, [dialog])
 
   return (
-    <DialogsCtx.Provider value={{ confirm, prompt, choice }}>
+    <DialogsCtx.Provider value={{ confirm, choice }}>
       {children}
       {dialog?.kind === 'confirm'
         ? <ConfirmDialog key={dialog.key} opts={dialog.opts} onClose={(v) => close(v)} />
-        : null}
-      {dialog?.kind === 'prompt'
-        ? <PromptDialog key={dialog.key} opts={dialog.opts} onClose={(v) => close(v)} />
         : null}
       {dialog?.kind === 'choice'
         ? <ChoiceDialog key={dialog.key} opts={dialog.opts} onClose={(v) => close(v)} />
@@ -191,11 +176,6 @@ export function DialogsProvider({ children }: { children: React.ReactNode }): Re
 /** 应用内 confirm 对话框；返回 Promise<boolean>。 */
 export function useConfirm(): (opts: ConfirmOptions) => Promise<boolean> {
   return React.useContext(DialogsCtx).confirm
-}
-
-/** 应用内 prompt 对话框；返回 Promise<string | null>（取消为 null）。 */
-export function usePrompt(): (opts: PromptOptions) => Promise<string | null> {
-  return React.useContext(DialogsCtx).prompt
 }
 
 /** 应用内多选一对话框；返回所选 value（取消为 null）。 */
@@ -217,34 +197,6 @@ function ConfirmDialog({ opts, onClose }: { opts: ConfirmOptions; onClose: (v: b
       </>}
     >
       <p className="kb-dialog__msg">{opts.message}</p>
-    </Modal>
-  )
-}
-
-function PromptDialog({ opts, onClose }: { opts: PromptOptions; onClose: (v: string | null) => void }): React.ReactElement {
-  const [value, setValue] = React.useState(opts.initial ?? '')
-  const t = useT()
-  const submit = (): void => { if (value.trim()) onClose(value) }
-  return (
-    <Modal
-      title={opts.title}
-      width="md"
-      onClose={() => onClose(null)}
-      footer={<>
-        <button type="button" className="kb-btn" onClick={() => onClose(null)}>{t('cancel')}</button>
-        <button type="button" className="kb-btn kb-btn--primary" disabled={!value.trim()} onClick={submit}>{opts.confirmLabel ?? t('ok')}</button>
-      </>}
-    >
-      <div className="kb-form">
-        <div className="kb-field">
-          {opts.label ? <span className="kb-field__label">{opts.label}</span> : null}
-          <input
-            className="kb-input" data-autofocus value={value} placeholder={opts.placeholder}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') submit() }}
-          />
-        </div>
-      </div>
     </Modal>
   )
 }

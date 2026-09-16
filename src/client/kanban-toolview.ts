@@ -114,8 +114,8 @@ function colorDot(color?: string): React.ReactElement | null {
 
 function colorVar(color: string): string {
   const map: Record<string, string> = {
-    'blue-gray': 'var(--dsw-alias-info)', green: 'var(--dsw-alias-success)', yellow: 'var(--dsw-alias-warning)',
-    brown: 'var(--dsw-alias-warning)', orange: 'var(--dsw-alias-warning)', 'warm-red': 'var(--dsw-alias-state-error-primary)',
+    'blue-gray': 'var(--dsw-alias-state-business-primary)', green: 'var(--dsw-alias-state-success-primary)', yellow: 'var(--dsw-alias-state-warn-primary)',
+    brown: 'var(--dsw-alias-state-warn-primary)', orange: 'var(--dsw-alias-state-warn-primary)', 'warm-red': 'var(--dsw-alias-state-error-primary)',
   }
   return map[color] ?? color
 }
@@ -179,7 +179,7 @@ function renderDetail(meta: DetailMeta): React.ReactElement {
             transitions.map((t, i) => React.createElement('span', { className: 'kb-tag', key: i }, t.name))))
       : null,
     (d.comments ?? []).length > 0
-      ? React.createElement('div', { className: 'kb-note' }, `评论 ${(d.comments ?? []).length} 条。`)
+      ? React.createElement('div', { className: 'kb-note' }, t('tvComments', { n: (d.comments ?? []).length }))
       : null,
   )
 }

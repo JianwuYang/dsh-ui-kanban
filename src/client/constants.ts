@@ -16,4 +16,4 @@ export const NAMESPACE = 'dsh-kanban'
 export const BOARD_TOOL_KEYS = ['kanban-issues', 'kanban-sync'] as const
 
 /** 哪些工具名渲染成自定义详情行。 */
-export const DETAIL_TOOL_KEYS = ['kanban-issue', 'kanban-move'] as const
+export const DETAIL_TOOL_KEYS = ['kanban-issue', 'kanban-move', 'kanban-assign'] as const

@@ -47,8 +47,8 @@ export function injectStyles(): void {
   --kb-primary: var(--dsw-alias-brand-primary); --kb-danger: var(--dsw-alias-state-error-primary);
   --kb-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
   /* 状态类目色（区分 todo 与 in-progress） */
-  --kb-cat-todo: var(--dsw-alias-label-tertiary); --kb-cat-progress: var(--dsw-alias-warning);
-  --kb-cat-done: var(--dsw-alias-success); --kb-cat-unknown: var(--dsw-alias-label-tertiary);
+  --kb-cat-todo: var(--dsw-alias-label-tertiary); --kb-cat-progress: var(--dsw-alias-state-warn-primary);
+  --kb-cat-done: var(--dsw-alias-state-success-primary); --kb-cat-unknown: var(--dsw-alias-label-tertiary);
   /* 层级 */
   --kb-z-app: 9999; --kb-z-panel: 9001; --kb-z-modal: 10000; --kb-z-toast: 10001; --kb-z-lightbox: 10002;
 }
@@ -451,7 +451,7 @@ a.kb-tag:hover { text-decoration: underline; text-underline-offset: 2px; }
   border-radius: var(--kb-radius-pill); padding: 0 8px; font-size: var(--kb-font-xs); line-height: 18px;
   background: var(--dsw-alias-bg-module-platform); color: var(--kb-text-sec); white-space: nowrap;
 }
-.kb-gitlab__state--opened { background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-info); background: color-mix(in srgb, var(--dsw-alias-info) 14%, transparent); }
+.kb-gitlab__state--opened { background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-state-business-primary); background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 14%, transparent); }
 .kb-gitlab__state--merged { background: var(--dsw-alias-bg-module-platform); color: var(--kb-primary); background: color-mix(in srgb, var(--kb-primary) 14%, transparent); }
 .kb-gitlab__state--closed { background: var(--dsw-alias-bg-module-platform); color: var(--kb-text-ter); }
 .kb-gitlab__branchrow { display: flex; align-items: center; gap: 6px; margin-top: var(--kb-space-2); font-size: var(--kb-font-xs); color: var(--kb-text-ter); font-family: var(--kb-mono); overflow: hidden; }
@@ -464,8 +464,8 @@ a.kb-tag:hover { text-decoration: underline; text-underline-offset: 2px; }
 
 /* ---- 优先级着色 tag ---- */
 .kb-tag--high { background: var(--dsw-alias-bg-module-platform); color: var(--kb-danger); background: color-mix(in srgb, var(--kb-danger) 12%, transparent); }
-.kb-tag--medium { background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-warning); background: color-mix(in srgb, var(--dsw-alias-warning) 14%, transparent); }
-.kb-tag--low { background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-info); background: color-mix(in srgb, var(--dsw-alias-info) 14%, transparent); }
+.kb-tag--medium { background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-state-warn-primary); background: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 14%, transparent); }
+.kb-tag--low { background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-state-business-primary); background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 14%, transparent); }
 
 /* ---- 表单注释状态 ---- */
 .kb-note--ok { color: var(--kb-cat-done); }

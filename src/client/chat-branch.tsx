@@ -3,8 +3,8 @@
  * 左侧展示当前会话工作区本地仓库的真实 git 分支，点开向上弹出本地分支列表，
  * 选中即切换（复用 host 半边已有的 /kanban-api/git/checkout 流程）。
  *
- * 数据链路：slot 是 session 作用域，owner props（InputZone）不带 cwd，因此按
- * 会话 id 从 sessions 服务快照里读工作区路径（useSessionCwd）；分支读取/列表/
+ * 数据链路：slot 是 session 作用域，框架把会话 id 作为标准 prop（`sessionId`）注入；
+ * 据此从 sessions 服务快照里读工作区路径（useSessionCwd）；分支读取/列表/
  * 切换走 /kanban-api/git/* 路由（host 半边 gitRoute）。
  *
  * 本组件渲染在 harness 会话 UI 中，不在 KanbanApp 的 ToastProvider 树内：chip
@@ -41,13 +41,13 @@ export function registerChatBranch(ctx: Context): void {
     const sessions = ctx.get('sessions') as SessionsServiceLike | undefined
     return ctx.slots.register(
       { name: 'conversation.input.left', id: `${NAMESPACE}-branch`, order: 100, label: `dsh-kanban ${t('appBrand')}` },
-      (props: { session?: { sessionId?: string }; sessionId?: string }) => React.createElement(
+      (props: { sessionId?: string }) => React.createElement(
         ToastProvider,
         null,
         React.createElement(ChatBranchChip, {
           sessions,
-          // owner InputZone.session 优先，standard sessionId seat 兜底（双保险）。
-          sessionId: props.session?.sessionId ?? props.sessionId,
+          // 会话 id 由框架作为标准 prop 注入（session 作用域插槽的 SessionStandardProps）。
+          sessionId: props.sessionId,
         }),
       ),
     )

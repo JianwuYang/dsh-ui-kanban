@@ -271,7 +271,7 @@ export function CreateModal({ onClose, onCreated, target }: { onClose: () => voi
       if (value !== undefined) fieldMap[field.id] = value
     }
     setBusy(true)
-    try { await api.createIssue({ summary, fields: fieldMap }); onCreated() }
+    try { await api.createIssue({ summary, fields: fieldMap }, target); onCreated() }
     catch (e) { setError(e instanceof Error ? e.message : t('createFailed')) }
     finally { setBusy(false) }
   }
@@ -303,7 +303,7 @@ export function CreateModal({ onClose, onCreated, target }: { onClose: () => voi
   return (
     <Modal title={t('createIssueTitle')} icon={<IcPlus size={14} />} onClose={onClose} width="md"
       footer={<>
-        <button type="button" className="kb-btn" onClick={onClose}>取消</button>
+        <button type="button" className="kb-btn" onClick={onClose}>{t('cancel')}</button>
         <button type="button" className="kb-btn kb-btn--primary" disabled={busy} onClick={() => void create()}>{busy ? t('creating') : t('create')}</button>
       </>}>
       {metaError ? (
@@ -699,14 +699,14 @@ export function GitLabPanel({ onClose, projectId, jiraIssues }: {
       {createIssueOpen ? (
         <Modal title={t('createIssueFromJiraTitle')} icon={<IcPlus size={14} />} onClose={() => setCreateIssueOpen(false)} width="md"
           footer={<>
-            <button className="kb-btn" onClick={() => setCreateIssueOpen(false)}>取消</button>
+            <button className="kb-btn" onClick={() => setCreateIssueOpen(false)}>{t('cancel')}</button>
             <button className="kb-btn kb-btn--primary" disabled={creatingIssue || selectedJira.size === 0} onClick={() => void createIssue()}>
               {creatingIssue ? t('creating') : selectedJira.size > 0 ? t('createCount', { n: selectedJira.size }) : t('create')}
             </button>
           </>}>
           <div className="kb-form">
-            <p className="kb-note">选择要合并到一个 GitLab 议题的 Jira 事项，标题和描述会自动生成：</p>
-            {jiraIssues.length === 0 ? <p className="kb-note">没有可用的 Jira 事项（先在板上同步）。</p> : (
+            <p className="kb-note">{t('selectJiraHint')}</p>
+            {jiraIssues.length === 0 ? <p className="kb-note">{t('noJiraHint')}</p> : (
               <SelectableList
                 options={jiraIssues.map((i) => ({ value: i.key, label: `${i.key} · ${i.summary}` }))}
                 selected={selectedJira}
@@ -723,14 +723,14 @@ export function GitLabPanel({ onClose, projectId, jiraIssues }: {
       {linkJiraIssue != null ? (
         <Modal title={t('linkJiraTitle', { iid: linkJiraIssue })} icon={<IcLink size={14} />} onClose={() => setLinkJiraIssue(null)} width="md"
           footer={<>
-            <button className="kb-btn" onClick={() => setLinkJiraIssue(null)}>取消</button>
+            <button className="kb-btn" onClick={() => setLinkJiraIssue(null)}>{t('cancel')}</button>
             <button className="kb-btn kb-btn--primary" disabled={savingLink || linkJiraSelected.size === 0} onClick={() => void linkJira()}>
               {savingLink ? t('linking') : linkJiraSelected.size > 0 ? t('linkCount', { n: linkJiraSelected.size }) : t('link')}
             </button>
           </>}>
           <div className="kb-form">
-            <p className="kb-note">选择要链接到该议题的 Jira 事项：</p>
-            {jiraIssues.length === 0 ? <p className="kb-note">没有可用的 Jira 事项（先在板上同步）。</p> : (
+            <p className="kb-note">{t('linkJiraHint')}</p>
+            {jiraIssues.length === 0 ? <p className="kb-note">{t('noJiraHint')}</p> : (
               <SelectableList
                 options={jiraIssues.map((i) => ({ value: i.key, label: `${i.key} · ${i.summary}` }))}
                 selected={linkJiraSelected}
@@ -745,7 +745,7 @@ export function GitLabPanel({ onClose, projectId, jiraIssues }: {
       {createMrOpen ? (
         <Modal title={t('createMrTitle')} icon={<IcBranch size={14} />} onClose={() => setCreateMrOpen(false)} width="md"
           footer={<>
-            <button className="kb-btn" onClick={() => setCreateMrOpen(false)}>取消</button>
+            <button className="kb-btn" onClick={() => setCreateMrOpen(false)}>{t('cancel')}</button>
             <button className="kb-btn kb-btn--primary" disabled={creatingMr || (mrSourceMode === 'existing' ? !mrSource : !(mrNewBranch || primaryBranchName))} onClick={() => void createMr()}>{creatingMr ? t('creating') : t('create')}</button>
           </>}>
           <div className="kb-form">
@@ -780,7 +780,7 @@ export function GitLabPanel({ onClose, projectId, jiraIssues }: {
                   selected={new Set([...mrIssueIids].map(String))}
                   onToggle={(v, on) => setMrIssueIids((s) => toggleSet(s, Number(v), on))}
                   filterPlaceholder={t('filterIssuesPlaceholder')} />
-              ) : <span className="kb-note">没有可关联的议题</span>}
+              ) : <span className="kb-note">{t('noLinkedIssues')}</span>}
             </Field>
           </div>
         </Modal>
@@ -790,18 +790,18 @@ export function GitLabPanel({ onClose, projectId, jiraIssues }: {
       {linkMrIssue != null ? (
         <Modal title={t('linkIssueToMrTitle', { iid: linkMrIssue })} icon={<IcBranch size={14} />} onClose={() => setLinkMrIssue(null)} width="md">
           <div className="kb-form">
-            <p className="kb-note">选择要关联的合并请求：</p>
-            {mrs.length === 0 ? <p className="kb-note">暂无合并请求</p> : (
+            <p className="kb-note">{t('selectMrHint')}</p>
+            {mrs.length === 0 ? <p className="kb-note">{t('noMrs')}</p> : (
               <div className="kb-gitlab__select-list">
                 {mrs.map((m) => (
                   <div className="kkb-proj" key={m.iid}>
                     <span>!{m.iid} · {m.title}</span>
-                    <button className="kb-btn kb-btn--ghost kb-btn--sm" onClick={() => void linkIssueToMr(linkMrIssue, m.iid)}>关联</button>
+                    <button className="kb-btn kb-btn--ghost kb-btn--sm" onClick={() => void linkIssueToMr(linkMrIssue, m.iid)}>{t('linkAction')}</button>
                   </div>
                 ))}
               </div>
             )}
-            <div className="kb-form__footer"><button className="kb-btn kb-btn--ghost" onClick={() => setLinkMrIssue(null)}>取消</button></div>
+            <div className="kb-form__footer"><button className="kb-btn kb-btn--ghost" onClick={() => setLinkMrIssue(null)}>{t('cancel')}</button></div>
           </div>
         </Modal>
       ) : null}
@@ -941,7 +941,7 @@ function AssignModal({ issueKey, target, onClose, onAssigned }: {
     setUploading(true)
     try {
       const dataBase64 = await readFileAsBase64(file)
-      const res = await api.uploadAttachment(issueKey, { filename: file.name, mime: file.type, dataBase64 })
+      const res = await api.uploadAttachment(issueKey, { filename: file.name, mime: file.type, dataBase64 }, target)
       const token = `!${res.filename}|thumbnail!`
       setComment((c) => (c ? `${c}\n${token}` : token))
       setUploaded((l) => [...l, res.filename])
@@ -978,7 +978,7 @@ function AssignModal({ issueKey, target, onClose, onAssigned }: {
     if (!name.trim()) return
     setBusy(true)
     try {
-      await api.assignIssue(issueKey, { name: name.trim(), comment: comment.trim() || undefined })
+      await api.assignIssue(issueKey, { name: name.trim(), comment: comment.trim() || undefined }, target)
       toast(t('assignedToast', { name }))
       onAssigned()
     } catch (e) {
@@ -1050,7 +1050,7 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession, tar
   // 图片附件经 attachment-proxy 拉取后以官方 image content part（base64）随附。
   const sendToSession = async (): Promise<void> => {
     const imageCount = (detail?.attachments ?? []).filter((a) => (a.mimeType ?? '').startsWith('image/')).length
-    const target = await choice({
+    const where = await choice({
       title: t('sendTitle'),
       message: imageCount > 0 ? t('sendMsg', { key: issueKey, n: imageCount }) : t('sendMsgNoImg', { key: issueKey }),
       options: [
@@ -1058,13 +1058,12 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession, tar
         { value: 'new', label: t('sendNew') },
       ],
     })
-    if (!target || !onSendToSession) return
-    const where = target as 'current' | 'new'
+    if (!where || !onSendToSession) return
     setSending(true)
     try {
       const images = await gatherIssueImages(detail)
-      await onSendToSession(issueKey, where, images)
-      if (target === 'current') toast(images.length > 0 ? t('sentToast', { n: images.length }) : t('sentToastNoImg'))
+      await onSendToSession(issueKey, where as 'current' | 'new', images)
+      if (where === 'current') toast(images.length > 0 ? t('sentToast', { n: images.length }) : t('sentToastNoImg'))
       // 'new' 时发送成功后面板会自动关闭，用户直接看到新会话，无需 toast
     } catch (e) {
       toast(e instanceof Error ? e.message : t('sendFailed'), 'error')
@@ -1099,22 +1098,22 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession, tar
   }, [allImages])
 
   const loadDetail = React.useCallback(async (): Promise<void> => {
-    try { setDetail(await api.getIssueDetail(issueKey)) }
+    try { setDetail(await api.getIssueDetail(issueKey, target)) }
     catch { setDetail(null) }
-  }, [issueKey])
+  }, [issueKey, target])
 
-  React.useEffect(() => { let cancelled = false; api.getIssueDetail(issueKey).then((d) => { if (!cancelled) setDetail(d) }).catch(() => { if (!cancelled) setDetail(null) }); return () => { cancelled = true } }, [issueKey])
+  React.useEffect(() => { let cancelled = false; api.getIssueDetail(issueKey, target).then((d) => { if (!cancelled) setDetail(d) }).catch(() => { if (!cancelled) setDetail(null) }); return () => { cancelled = true } }, [issueKey, target])
 
   const move = async (transition: JiraTransitionOption): Promise<void> => {
     setBusy(true)
-    try { await api.transitionIssue(issueKey, transition.id); await onChanged(); await loadDetail() }
+    try { await api.transitionIssue(issueKey, transition.id, undefined, target); await onChanged(); await loadDetail() }
     catch (e) { toast(e instanceof Error ? e.message : t('loadFailed'), 'error') }
     finally { setBusy(false) }
   }
   const addComment = async (): Promise<void> => {
     if (!comment.trim()) return
     setBusy(true)
-    try { await api.addComment(issueKey, comment); setComment(''); setUploaded([]); await loadDetail() }
+    try { await api.addComment(issueKey, comment, target); setComment(''); setUploaded([]); await loadDetail() }
     catch (e) { toast(e instanceof Error ? e.message : t('commentFailed'), 'error') }
     finally { setBusy(false) }
   }
@@ -1123,7 +1122,7 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession, tar
     setUploading(true)
     try {
       const dataBase64 = await readFileAsBase64(file)
-      const res = await api.uploadAttachment(issueKey, { filename: file.name, mime: file.type, dataBase64 })
+      const res = await api.uploadAttachment(issueKey, { filename: file.name, mime: file.type, dataBase64 }, target)
       const token = `!${res.filename}|thumbnail!`
       setComment((c) => (c ? `${c}\n${token}` : token))
       setUploaded((l) => [...l, res.filename])
@@ -1154,7 +1153,7 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession, tar
   }
   const remove = async (): Promise<void> => {
     if (!(await confirm({ title: t('deleteIssueTitle'), message: t('deleteIssueMsg', { key: issueKey }), confirmLabel: t('delete'), danger: true }))) return
-    try { await api.deleteIssue(issueKey); await onChanged(); onClose() }
+    try { await api.deleteIssue(issueKey, target); await onChanged(); onClose() }
     catch (e) { toast(e instanceof Error ? e.message : t('deleteFailed'), 'error') }
   }
 
@@ -1164,11 +1163,11 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession, tar
         <>
           {onSendToSession ? <button className="kb-btn kb-btn--ghost" disabled={sending} onClick={() => void sendToSession()}><IcSend size={12} />{sending ? t('sending') : t('sendToSession')}</button> : null}
           <button className="kb-btn kb-btn--ghost" onClick={() => setAssignOpen(true)}><IcUser size={12} />{t('assign')}</button>
-          {detail.url ? <a className="kb-btn kb-btn--ghost" href={detail.url} target="_blank" rel="noreferrer noopener"><IcExternalLink size={12} />在 Jira 中打开</a> : null}
+          {detail.url ? <a className="kb-btn kb-btn--ghost" href={detail.url} target="_blank" rel="noreferrer noopener"><IcExternalLink size={12} />{t('openInJira')}</a> : null}
           <span className="kb-modal__foot-spacer" />
-          {detail.canDelete ? <button className="kb-btn kb-btn--danger" onClick={() => void remove()}><IcTrash size={12} />删除</button> : null}
-          <button className="kb-btn kb-btn--ghost" onClick={() => void loadDetail()}><IcSync size={12} />刷新</button>
-          <button className="kb-btn" onClick={onClose}>关闭</button>
+          {detail.canDelete ? <button className="kb-btn kb-btn--danger" onClick={() => void remove()}><IcTrash size={12} />{t('delete')}</button> : null}
+          <button className="kb-btn kb-btn--ghost" onClick={() => void loadDetail()}><IcSync size={12} />{t('refreshDetail')}</button>
+          <button className="kb-btn" onClick={onClose}>{t('close')}</button>
         </>
       ) : undefined}>
       {!detail ? <SkeletonDetail /> : (
@@ -1184,7 +1183,7 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession, tar
 
           {(detail.descriptionHtml || detail.description) ? (
             <div className="kb-detail__section">
-              <div className="kb-detail__label">描述</div>
+              <div className="kb-detail__label">{t('descriptionLabel2')}</div>
               {detail.descriptionHtml
                 ? <div className="kb-detail__html" dangerouslySetInnerHTML={{ __html: detail.descriptionHtml }} />
                 : <div className="kb-detail__desc">{detail.description}</div>}
@@ -1193,7 +1192,7 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession, tar
 
           {(detail.attachments ?? []).length > 0 ? (
             <div className="kb-detail__section">
-              <div className="kb-detail__label"><IcImage size={13} />附件（{(detail.attachments ?? []).length}）</div>
+              <div className="kb-detail__label"><IcImage size={13} />{t('attachmentsLabel', { n: (detail.attachments ?? []).length })}</div>
               <div className="kb-detail__transitions">
                 {(detail.attachments ?? []).map((a) => (
                   <a key={a.id} className="kb-tag" href={a.url} target="_blank" rel="noreferrer noopener" title={a.url}>{a.filename}</a>
@@ -1204,11 +1203,11 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession, tar
 
           {detail.transitions.length > 0 ? (
             <div className="kb-detail__section">
-              <div className="kb-detail__label">流转（点击目标状态移动 issue）</div>
+              <div className="kb-detail__label">{t('transitionsLabel')}</div>
               <div className="kb-detail__transitions">
-                {detail.transitions.map((t) => (
-                  <button className="kb-btn" key={t.id} disabled={busy} onClick={() => void move(t)}>
-                    <StatusDot category={t.toStatus.category} name={t.name} color={statusAccent(t.toStatus.color, t.name)} />
+                {detail.transitions.map((tr) => (
+                  <button className="kb-btn" key={tr.id} disabled={busy} onClick={() => void move(tr)}>
+                    <StatusDot category={tr.toStatus.category} name={tr.name} color={statusAccent(tr.toStatus.color, tr.name)} />
                   </button>
                 ))}
               </div>
@@ -1216,7 +1215,7 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession, tar
           ) : null}
 
           <div className="kb-detail__section">
-            <div className="kb-detail__label"><IcComment size={13} />评论（{detail.comments?.length ?? detail.commentCount ?? 0}）</div>
+            <div className="kb-detail__label"><IcComment size={13} />{t('commentsLabel', { n: detail.comments?.length ?? detail.commentCount ?? 0 })}</div>
             <div className="kb-detail__comments">
               {(detail.comments ?? []).map((c) => (
                 <div className="kb-comment" key={c.id}>
@@ -1229,7 +1228,7 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession, tar
                   </div>
                 </div>
               ))}
-              {(detail.comments ?? []).length === 0 ? <p className="kb-note">暂无评论</p> : null}
+              {(detail.comments ?? []).length === 0 ? <p className="kb-note">{t('noComments')}</p> : null}
             </div>
           </div>
 
@@ -1251,9 +1250,9 @@ export function DetailModal({ issueKey, onClose, onChanged, onSendToSession, tar
                 <button className="kb-btn kb-btn--ghost kb-btn--sm" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
                   {uploading ? <IcSync size={12} className="kb-spin" /> : <IcImage size={12} />}{uploading ? t('uploading') : t('imageBtn')}
                 </button>
-                <span className="kb-note">粘贴或选择图片，自动上传并插入引用</span>
+                <span className="kb-note">{t('pasteHint')}</span>
               </div>
-              <button className="kb-btn kb-btn--primary" disabled={busy || !comment.trim()} onClick={() => void addComment()}>评论</button>
+              <button className="kb-btn kb-btn--primary" disabled={busy || !comment.trim()} onClick={() => void addComment()}>{t('comment')}</button>
             </div>
           </div>
 

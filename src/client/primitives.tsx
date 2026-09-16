@@ -150,16 +150,6 @@ export function SkeletonBoard({ columns = 4, cards = 3 }: { columns?: number; ca
   )
 }
 
-export function SkeletonList({ rows = 8 }: { rows?: number }): React.ReactElement {
-  return (
-    <div className="kb-skeleton-detail" aria-hidden="true">
-      {Array.from({ length: rows }, (_, r) => (
-        <div className="kb-skeleton kb-skeleton-line" key={r} style={{ width: r % 3 === 0 ? '58%' : '82%' }} />
-      ))}
-    </div>
-  )
-}
-
 export function SkeletonCards({ cards = 4 }: { cards?: number }): React.ReactElement {
   return (
     <div className="kb-skeleton-cards" aria-hidden="true">

@@ -51,7 +51,10 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`/kanban-api${path}`, { headers: { 'Content-Type': 'application/json' }, ...init })
+  // Content-Type only on requests that carry a body: the header is meaningless
+  // on a GET and only invites a preflight.
+  const headers = init?.body === undefined ? undefined : { 'Content-Type': 'application/json' }
+  const res = await fetch(`/kanban-api${path}`, { ...init, ...(headers === undefined ? {} : { headers }) })
   const text = await res.text()
   const body = text ? (JSON.parse(text) as unknown) : undefined
   if (!res.ok) {
@@ -63,69 +66,69 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 const json = (value: unknown): RequestInit => ({ body: JSON.stringify(value) })
 
-/** Build a query targeting a workspace: a bare string => `?project=`, or `{workspace,cwd}`. */
-const qs = (t?: string | { workspace?: string; cwd?: string }): string => {
-  if (t === undefined || t === null) return ''
-  if (typeof t === 'string') return `?project=${encodeURIComponent(t)}`
-  const parts: string[] = []
-  if (t.workspace) parts.push(`workspace=${encodeURIComponent(t.workspace)}`)
-  if (t.cwd) parts.push(`cwd=${encodeURIComponent(t.cwd)}`)
-  return parts.length ? `?${parts.join('&')}` : ''
-}
+/**
+ * Which workspace a request targets: a bare string is a workspace/project
+ * reference, the object form names a session (the registry's ownership truth),
+ * its working directory, or an explicit workspace.
+ */
+export type ProjectTarget = string | { workspace?: string; cwd?: string; session?: string }
 
-/** Query params (without the leading `?`) for a workspace target, for joining into an existing query. */
-const targetParams = (t?: string | { workspace?: string; cwd?: string }): string => {
+const targetParams = (t?: ProjectTarget): string => {
   if (t === undefined || t === null) return ''
   if (typeof t === 'string') return `project=${encodeURIComponent(t)}`
   const parts: string[] = []
   if (t.workspace) parts.push(`workspace=${encodeURIComponent(t.workspace)}`)
   if (t.cwd) parts.push(`cwd=${encodeURIComponent(t.cwd)}`)
+  if (t.session) parts.push(`session=${encodeURIComponent(t.session)}`)
   return parts.join('&')
 }
 
+/** Query params (with a leading `?`) for a workspace target. */
+const qs = (t?: ProjectTarget): string => {
+  const params = targetParams(t)
+  return params ? `?${params}` : ''
+}
+
 /** Append a workspace target to a path that may already carry a query string. */
-const withTarget = (path: string, t?: string | { workspace?: string; cwd?: string }): string => {
+const withTarget = (path: string, t?: ProjectTarget): string => {
   const params = targetParams(t)
   if (!params) return path
   return `${path}${path.includes('?') ? '&' : '?'}${params}`
 }
 
 export const api = {
-  getMeta: (target?: string | { workspace?: string; cwd?: string }) => request<SyncMeta>(`/sync${qs(target)}`),
-  getSettings: (target?: string | { workspace?: string; cwd?: string }) => request<SettingsPayload>(`/settings${qs(target)}`),
-  saveSettings: (settings: AppSettings, target?: string | { workspace?: string; cwd?: string }) => request<{ ok: boolean }>(`/settings${qs(target)}`, { method: 'PUT', ...json(settings) }),
-  getProjects: (target?: string | { workspace?: string; cwd?: string }) => request<{ projects: ProjectSummary[]; currentProjectId: string | null }>(`/projects${qs(target)}`),
-  // "New project" in the workspace model = set a workspace's override (name).
-  createProject: (workspace: string, name?: string, fromProjectId?: string) => request<{ projects: ProjectSummary[]; currentProjectId: string | null }>('/projects', { method: 'POST', ...json({ workspace, ...(name ? { name } : {}), ...(fromProjectId ? { fromProjectId } : {}) }) }),
-  renameProject: (id: string, name: string) => request<{ projects: ProjectSummary[]; currentProjectId: string | null }>(`/projects/${encodeURIComponent(id)}`, { method: 'PUT', ...json({ name }) }),
-  deleteProject: (id: string) => request<{ projects: ProjectSummary[]; currentProjectId: string | null }>(`/projects/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  activateProject: (id: string) => request<{ projects: ProjectSummary[]; currentProjectId: string | null }>(`/projects/${encodeURIComponent(id)}/activate`, { method: 'POST' }),
+  getMeta: (target?: ProjectTarget) => request<SyncMeta>(`/sync${qs(target)}`),
+  getSettings: (target?: ProjectTarget) => request<SettingsPayload>(`/settings${qs(target)}`),
+  saveSettings: (settings: AppSettings, target?: ProjectTarget) => request<{ ok: boolean }>(`/settings${qs(target)}`, { method: 'PUT', ...json(settings) }),
+  getProjects: (target?: ProjectTarget) => request<{ projects: ProjectSummary[]; currentProjectId: string | null }>(`/projects${qs(target)}`),
   testSettings: (jira: JiraSettings) => request<{ ok: boolean; user?: string | null; error?: string | null }>('/settings/test', { method: 'POST', ...json({ jira }) }),
   testGitlab: (gitlab: GitLabSettings) => request<{ ok: boolean; user?: string | null; error?: string | null; recentBranches?: string[] }>('/settings/gitlab/test', { method: 'POST', ...json({ gitlab }) }),
-  gitlabBranches: (q: string, target?: string | { workspace?: string; cwd?: string }) => request<{ branches: string[] }>(withTarget('/settings/gitlab/branches', target), { method: 'POST', ...json({ q }) }),
-  getCreateMeta: (issueType?: string, target?: string | { workspace?: string; cwd?: string }) => request<CreateMeta>(withTarget(`/settings/createmeta${issueType ? `?issueType=${encodeURIComponent(issueType)}` : ''}`, target)),
-  searchAssignees: (q: string, target?: string | { workspace?: string; cwd?: string }) => request<CreateUserOption[]>(withTarget(`/settings/assignees?q=${encodeURIComponent(q)}`, target)),
-  sync: (options?: { jql?: string; assigneeSelf?: boolean; reporterSelf?: boolean }, target?: string | { workspace?: string; cwd?: string }) => request<SyncResult>(`/sync${qs(target)}`, { method: 'POST', ...(options ? json(options) : {}) }),
-  getIssues: (target?: string | { workspace?: string; cwd?: string }) => request<BoardIssue[]>(`/issues${qs(target)}`),
-  createIssue: (input: { summary: string; fields: Record<string, unknown> }) => request<{ ok: boolean; issue: BoardIssue }>('/issues', { method: 'POST', ...json(input) }),
-  getIssueDetail: (key: string) => request<BoardIssueDetail>(`/issues/${encodeURIComponent(key)}`),
-  getIssueTransitions: (key: string) => request<JiraTransitionOption[]>(`/issues/${encodeURIComponent(key)}/transitions`),
-  transitionIssue: (key: string, transitionId: string, comment?: string) => request<{ ok: boolean; issue: BoardIssue }>(`/issues/${encodeURIComponent(key)}/transition`, { method: 'POST', ...json({ transitionId, ...(comment ? { comment } : {}) }) }),
-  deleteIssue: (key: string) => request<{ ok: boolean; key: string }>(`/issues/${encodeURIComponent(key)}`, { method: 'DELETE' }),
-  assignIssue: (key: string, payload: { name: string; comment?: string }) => request<BoardIssueDetail>(`/issues/${encodeURIComponent(key)}/assign`, { method: 'POST', ...json(payload) }),
-  addComment: (key: string, body: string) => request<{ ok: boolean }>(`/issues/${encodeURIComponent(key)}/comments`, { method: 'POST', ...json({ body }) }),
-  uploadAttachment: (key: string, payload: { filename: string; mime: string; dataBase64: string }) => request<{ ok: boolean; filename: string }>(`/issues/${encodeURIComponent(key)}/attachments`, { method: 'POST', ...json(payload) }),
-  gitlabIssues: (state: GitlabListState, search: string, target?: string | { workspace?: string; cwd?: string }) => request<GitlabIssue[]>(withTarget(`/gitlab/issues?state=${state}&search=${encodeURIComponent(search)}`, target)),
-  gitlabMrs: (state: GitlabListState, search: string, target?: string | { workspace?: string; cwd?: string }) => request<GitlabMr[]>(withTarget(`/gitlab/merge_requests?state=${state}&search=${encodeURIComponent(search)}`, target)),
-  gitlabCreateIssueFromJira: (jiras: { key: string; summary: string }[], title?: string, description?: string, target?: string | { workspace?: string; cwd?: string }) => request<{ ok: boolean; issue: GitlabIssue }>(withTarget('/gitlab/issues', target), { method: 'POST', ...json({ jiras, ...(title ? { title } : {}), ...(description ? { description } : {}) }) }),
-  gitlabCreateMr: (payload: { sourceBranch: string; targetBranch?: string; title?: string; issueIids: number[]; createBranch?: boolean }, target?: string | { workspace?: string; cwd?: string }) => request<{ ok: boolean; merge_request: GitlabMr }>(withTarget('/gitlab/merge_requests', target), { method: 'POST', ...json(payload) }),
-  gitlabLinkJira: (iid: number, jiraKeys: string[], target?: string | { workspace?: string; cwd?: string }) => request<{ ok: boolean; issue: GitlabIssue }>(withTarget(`/gitlab/issues/${iid}/link-jira`, target), { method: 'POST', ...json({ jiraKeys }) }),
-  gitlabUnlinkJira: (iid: number, keys: string[], target?: string | { workspace?: string; cwd?: string }) => request<{ ok: boolean }>(withTarget(`/gitlab/issues/${iid}/unlink-jira`, target), { method: 'POST', ...json({ keys }) }),
-  gitlabLinkIssueToMr: (iid: number, mrIid: number, target?: string | { workspace?: string; cwd?: string }) => request<{ ok: boolean }>(withTarget(`/gitlab/issues/${iid}/mr`, target), { method: 'POST', ...json({ mrIid }) }),
-  gitlabCloseIssue: (iid: number, target?: string | { workspace?: string; cwd?: string }) => request<{ ok: boolean }>(withTarget(`/gitlab/issues/${iid}/close`, target), { method: 'POST' }),
-  gitlabCloseMr: (iid: number, target?: string | { workspace?: string; cwd?: string }) => request<{ ok: boolean }>(withTarget(`/gitlab/merge_requests/${iid}/close`, target), { method: 'POST' }),
-  gitCheckout: (branch: string, target?: string | { workspace?: string; cwd?: string }) => request<{ ok: boolean; branch: string; error?: string }>(withTarget('/git/checkout', target), { method: 'POST', ...json({ branch }) }),
-  gitCurrentBranch: (target?: string | { workspace?: string; cwd?: string }) => request<{ branch: string | null; detached: boolean; error?: string }>(withTarget('/git/current-branch', target)),
-  gitBranches: (target?: string | { workspace?: string; cwd?: string }) => request<{ branches: string[]; current?: string | null; error?: string }>(withTarget('/git/branches', target)),
-  syncPreview: (options?: { jql?: string; assigneeSelf?: boolean; reporterSelf?: boolean }, target?: string | { workspace?: string; cwd?: string }) => request<{ total: number; issues: { key: string; summary: string }[] }>(withTarget('/sync/preview', target), { method: 'POST', ...(options ? json(options) : {}) }),
+  gitlabBranches: (q: string, target?: ProjectTarget) => request<{ branches: string[] }>(withTarget('/settings/gitlab/branches', target), { method: 'POST', ...json({ q }) }),
+  getCreateMeta: (issueType?: string, target?: ProjectTarget) => request<CreateMeta>(withTarget(`/settings/createmeta${issueType ? `?issueType=${encodeURIComponent(issueType)}` : ''}`, target)),
+  searchAssignees: (q: string, target?: ProjectTarget) => request<CreateUserOption[]>(withTarget(`/settings/assignees?q=${encodeURIComponent(q)}`, target)),
+  sync: (options?: { jql?: string; assigneeSelf?: boolean; reporterSelf?: boolean }, target?: ProjectTarget) => request<SyncResult>(`/sync${qs(target)}`, { method: 'POST', ...(options ? json(options) : {}) }),
+  getIssues: (target?: ProjectTarget) => request<BoardIssue[]>(`/issues${qs(target)}`),
+  createIssue: (input: { summary: string; fields: Record<string, unknown> }, target?: ProjectTarget) => request<{ ok: boolean; issue: BoardIssue }>(`/issues${qs(target)}`, { method: 'POST', ...json(input) }),
+  // Every issue-scoped call MUST carry the workspace target: the host resolves an
+  // absent one to the *first* workspace, so a multi-workspace board would read a
+  // key from (or write to) the wrong Jira project.
+  getIssueDetail: (key: string, target?: ProjectTarget) => request<BoardIssueDetail>(withTarget(`/issues/${encodeURIComponent(key)}`, target)),
+  transitionIssue: (key: string, transitionId: string, comment?: string, target?: ProjectTarget) => request<{ ok: boolean; issue: BoardIssue }>(withTarget(`/issues/${encodeURIComponent(key)}/transition`, target), { method: 'POST', ...json({ transitionId, ...(comment ? { comment } : {}) }) }),
+  deleteIssue: (key: string, target?: ProjectTarget) => request<{ ok: boolean; key: string }>(withTarget(`/issues/${encodeURIComponent(key)}`, target), { method: 'DELETE' }),
+  assignIssue: (key: string, payload: { name: string; comment?: string }, target?: ProjectTarget) => request<BoardIssueDetail>(withTarget(`/issues/${encodeURIComponent(key)}/assign`, target), { method: 'POST', ...json(payload) }),
+  addComment: (key: string, body: string, target?: ProjectTarget) => request<{ ok: boolean }>(withTarget(`/issues/${encodeURIComponent(key)}/comments`, target), { method: 'POST', ...json({ body }) }),
+  uploadAttachment: (key: string, payload: { filename: string; mime: string; dataBase64: string }, target?: ProjectTarget) => request<{ ok: boolean; filename: string }>(withTarget(`/issues/${encodeURIComponent(key)}/attachments`, target), { method: 'POST', ...json(payload) }),
+  gitlabIssues: (state: GitlabListState, search: string, target?: ProjectTarget) => request<GitlabIssue[]>(withTarget(`/gitlab/issues?state=${state}&search=${encodeURIComponent(search)}`, target)),
+  gitlabMrs: (state: GitlabListState, search: string, target?: ProjectTarget) => request<GitlabMr[]>(withTarget(`/gitlab/merge_requests?state=${state}&search=${encodeURIComponent(search)}`, target)),
+  gitlabCreateIssueFromJira: (jiras: { key: string; summary: string }[], title?: string, description?: string, target?: ProjectTarget) => request<{ ok: boolean; issue: GitlabIssue }>(withTarget('/gitlab/issues', target), { method: 'POST', ...json({ jiras, ...(title ? { title } : {}), ...(description ? { description } : {}) }) }),
+  gitlabCreateMr: (payload: { sourceBranch: string; targetBranch?: string; title?: string; issueIids: number[]; createBranch?: boolean }, target?: ProjectTarget) => request<{ ok: boolean; merge_request: GitlabMr }>(withTarget('/gitlab/merge_requests', target), { method: 'POST', ...json(payload) }),
+  gitlabLinkJira: (iid: number, jiraKeys: string[], target?: ProjectTarget) => request<{ ok: boolean; issue: GitlabIssue }>(withTarget(`/gitlab/issues/${iid}/link-jira`, target), { method: 'POST', ...json({ jiraKeys }) }),
+  gitlabUnlinkJira: (iid: number, keys: string[], target?: ProjectTarget) => request<{ ok: boolean }>(withTarget(`/gitlab/issues/${iid}/unlink-jira`, target), { method: 'POST', ...json({ keys }) }),
+  gitlabLinkIssueToMr: (iid: number, mrIid: number, target?: ProjectTarget) => request<{ ok: boolean }>(withTarget(`/gitlab/issues/${iid}/mr`, target), { method: 'POST', ...json({ mrIid }) }),
+  gitlabCloseIssue: (iid: number, target?: ProjectTarget) => request<{ ok: boolean }>(withTarget(`/gitlab/issues/${iid}/close`, target), { method: 'POST' }),
+  gitlabCloseMr: (iid: number, target?: ProjectTarget) => request<{ ok: boolean }>(withTarget(`/gitlab/merge_requests/${iid}/close`, target), { method: 'POST' }),
+  gitCheckout: (branch: string, target?: ProjectTarget) => request<{ ok: boolean; branch: string; error?: string }>(withTarget('/git/checkout', target), { method: 'POST', ...json({ branch }) }),
+  gitCurrentBranch: (target?: ProjectTarget) => request<{ branch: string | null; detached: boolean; error?: string }>(withTarget('/git/current-branch', target)),
+  gitBranches: (target?: ProjectTarget) => request<{ branches: string[]; current?: string | null; error?: string }>(withTarget('/git/branches', target)),
+  syncPreview: (options?: { jql?: string; assigneeSelf?: boolean; reporterSelf?: boolean }, target?: ProjectTarget) => request<{ total: number; issues: { key: string; summary: string }[] }>(withTarget('/sync/preview', target), { method: 'POST', ...(options ? json(options) : {}) }),
 }
