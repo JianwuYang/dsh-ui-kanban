@@ -41,7 +41,7 @@
   列表选择），git 报错原样显示在 toast 里。
 - **丢进会话分析。** 从 issue 详情一键把「只分析、不修改」的请求发进**当前会话**
   或**在当前工作区新建会话**——走官方 `ISession.prompt` /
-  `workspaces.startSession()` 入口；图片附件以 image content part（base64）随消息
+  `uiWorkspace.startSession()` 入口；图片附件以 image content part（base64）随消息
   发出，支持视觉的模型能真正看到图；指令要求 agent 用 `kanban-issue` 拉取最新
   数据、只分析不做任何修改。
 - **带富渲染的工具。** 工具结果在对话里直接渲染成看板列、issue 详情、项目列表、
@@ -161,7 +161,7 @@ issue 详情里有「**丢进会话分析**」操作。确认弹窗选择发送�
 在当前工作区新建会话）后：
 
 1. 面板通过官方 `ISession.prompt` 入口发送提示词（新建会话走
-   `workspaces.startSession()`，在当前工作区创建并打开新会话）；
+   `uiWorkspace.startSession()`，在当前工作区创建并打开新会话）；
 2. 消息只带 issue key + 指令：调用 `kanban-issue` 拉取最新详情、**只做分析
    不做任何修改**——agent 通过工具拿实时数据，聊天里用同一套 toolview 富渲染；
 3. 图片附件经 host 代理拉取后以 image content part（base64）随消息发出，支持

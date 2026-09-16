@@ -1,13 +1,15 @@
 # dsh-kanban — browser-half UI surfaces
 
-The client half (`src/client/`) registers four UI surfaces via `ctx.slots`.
-All but the config card's *data path* are pure declarative slot registrations
-that work on any harness **without** editing the harness source; only the
-config card's data path is gated by the web settings allowlist (see below).
+The client half (`src/client/`) registers five UI surfaces via `ctx.slots`.
+They are pure declarative slot registrations that work on any harness **without**
+editing the harness source; the config card's data path reads its namespace
+through `ctx.settingsScope` — since 2026-08-12 the harness serves every
+registered settings namespace, so the old `WEB_SETTINGS_NAMESPACES` allowlist no
+longer exists.
 
 | Surface | Module | Id / Key | Behavior |
 |--------|--------|----------|----------|
-| `settings.plugin.item` | `src/client/config-card.ts` | key = `dsh-kanban` | A card under Settings → Plugins → Configurable. Edits the **global Jira/GitLab host + token** (token is a password field; leaving it blank keeps the host-side secret, so a redacted token is never clobbered), plus the scalar settings (`dataDir`, `allowSelfSigned`, `verbose`). Global host/token are written through a merge-only `PUT /kanban-api/settings/global` endpoint; the per-workspace project/connection overrides are managed with the `kanban-configure` tool. |
+| `settings.plugin.item` | `src/client/config-card.ts` | key = `dsh-kanban` | A card under Settings → Plugins → Configurable. Edits the **global Jira/GitLab host + token** (token is a password field; leaving it blank keeps the host-side secret, so a redacted token is never clobbered), plus the scalar settings (`dataDir`, `allowSelfSigned`, `verbose`). Global host/token are written through the settings namespace itself (`settingsScope.mutate` path ops, one leaf per write); the per-workspace project/connection overrides are managed with the `kanban-configure` tool. |
 | `conversation.session.header.utilities` | `src/client/kanban-activity.tsx` | id = `dsh-kanban` | A **"看板" button (icon + label)** in the session-header utility row (right of the session title). Session-scoped: clicking opens the floating panel for **that session's workspace**. This is the only entry to the interactive board. |
 | `shell.overlay` | `src/client/kanban-activity.tsx` | id = `dsh-kanban-panel` | The **session-scoped floater panel**, opened by the header button above (no persistent badge). It follows the **currently-selected session's** workspace live (falls back to the opening session's `cwd` when none is selected): switching sessions/workspaces in DSH reloads the panel for the new workspace's project, via `?cwd=`. Closes via the panel's close button. |
 | `tool.call.toolview` | `src/client/kanban-toolview.ts` | keys = `kanban-issues`, `kanban-sync`, `kanban-issue`, `kanban-move`, `kanban-projects` | Renders the result of a kanban tool call as a visual board / detail / project list. |
@@ -23,7 +25,8 @@ no harness edit is needed. It only mounts when a web server is composed (the
 `web` profile); headless profiles simply don't get it.
 
 Board/list endpoints accept an optional `?workspace=<id|title|path>` query to
-address a specific workspace, or `?cwd=<path>` for the session's workspace —
+address a specific workspace, `?session=<id>` for the calling session (the
+registry's ownership truth), or `?cwd=<path>` for the session's workspace —
 the session-scoped floater uses one of these to show a per-session project on
 `GET /issues` and `POST /sync`. Absent, they fall back to the first workspace.
 With the workspace model the board derives one project per DSH workspace and
@@ -55,13 +58,13 @@ The client half is organized into small modules under `src/client/`:
 |--------|---------|
 | `styles.ts` | Single injected `<style>` tag. Design tokens at `:root, body` (`--kb-*`: radii, spacing, type scale ≥12px, motion 150–300ms, semantic colors mapped to `--dsw-alias-*`, status-category accents — note the harness defines `--dsw-alias-*` on `body`, so theme-mapped tokens must not live on `:root` alone). Shared component classes are unscoped `.kb-*` (used by both the app and the chat toolviews); `.kkb-app` keeps only app-layout rules; `.kkb-config-*` / `.kkb-header-*` style the remaining surfaces. |
 | `icons.tsx` | Inline SVG icon set (`Ic*`), no icon library — the client bundle only allows the `react` runtime dep. |
-| `modal.tsx` | In-app `Modal` (Esc closes only the topmost of nested modals via a module-level depth stack, focus trap + restore, body scroll lock, enter/exit animation; `footer={null}` removes the bottom bar), `ConfirmDialog`/`PromptDialog`/`ChoiceDialog` + `DialogsProvider` — replace all native `alert`/`confirm`/`prompt`. |
+| `modal.tsx` | In-app `Modal` (Esc closes only the topmost of nested modals via a module-level depth stack, focus trap + restore, body scroll lock, enter/exit animation; `footer={null}` removes the bottom bar), `ConfirmDialog`/`ChoiceDialog` + `DialogsProvider` — replace all native `alert`/`confirm`/`prompt`. |
 | `toast.tsx` | `ToastProvider` + `useToast()` — aria-live toasts with enter/exit animation. |
 | `primitives.tsx` | Shared widgets: `IconButton`, `Avatar` (initials), `StatusDot`, `SearchInput`, `SegToggle`, `EmptyState`, skeletons, `CopyButton`, `formatDateTime` (browser-local timestamps). |
 | `kanban-app.tsx` | App shell: providers, state, load/sync handlers, panel header (two rows — brand/meta/close, labeled actions). |
 | `kanban-board.tsx` | The single board view: a status-grouped vertical list for narrow panels — collapsible sections (status dot + count + chevron), full-width cards, client-side search. No drag & drop and no status filter chips: moving an issue goes through click → detail → transition buttons (keyboard-friendly), and the grouping itself is the status overview. |
 | `kanban-modals.tsx` | Settings / Create issue (createmeta-driven, chip-style multi-value fields) / GitLab workspace (nested sub-modals) / issue detail (attachments, comment composer, send-to-session) / image lightbox. |
-| `session-send.ts` | Send-to-session analysis via the official `ISession.prompt` (current session) and `workspaces.startSession()` (new session in the current workspace); image attachments ride along as image content parts (base64). |
+| `session-send.ts` | Send-to-session analysis via the official `ISession.prompt` (current session) and `uiWorkspace.startSession()` (new session in the current workspace); image attachments ride along as image content parts (base64). |
 | `locales.ts` | Lightweight i18n: zh/en dictionaries + `useT()` subscribed to the harness `ctx.locale` service (`bindLocale` at apply time; falls back to zh when absent). All UI copy goes through `t(key)`; the analysis prompt follows the active UI language. |
 
 Interactions: Esc closes the topmost modal (lightbox first), focus is trapped
@@ -74,7 +77,7 @@ from the old `kkb-*` set to the shared `kb-*` set.
 **Send-to-session analysis**: the issue detail modal has a 「丢进会话分析」
 button — after a confirm dialog (current session / new session in the current
 workspace), the panel sends a prompt through the official `ISession.prompt`
-(`session-send.ts`; new sessions go through `workspaces.startSession()`). The
+(`session-send.ts`; new sessions go through `uiWorkspace.startSession()`). The
 message carries only the issue key plus an instruction to call `kanban-issue`
 and to analyze without modifying — the agent pulls live data through the tool,
 and the chat renders it via the existing toolview. Image attachments are
@@ -85,25 +88,15 @@ download URLs.
 
 ## The config card on a stock harness
 
-The config card always renders. On a stock harness the `dsh-kanban` settings
-namespace is not in the web gateway's allowlist
-(`WEB_SETTINGS_NAMESPACES`), so `settings.describe` answers
-`settings-not-exposed` and the card shows a read-only "not exposed" status
-card instead of fields. This only affects the card's **editability** — the host
-half still reads the resolved namespace on every tool call, and the tools work
-regardless.
-
-To make the card editable, add the namespace to the allowlist:
-
-```ts
-const WEB_SETTINGS_NAMESPACES = [
-  'agent-loop', 'shell', 'locale', 'permission', 'ui-conversation', 'ui-theme', 'web-search-deepseek',
-  'dsh-kanban',   // ← add this line
-] as const
-```
-
-(The path in the harness is `packages/host/apiproxy/src/api-proxy.ts`; rebuild /
-restart the harness, then refresh the page.)
+The config card always renders, on any harness build. Registering a settings
+namespace is all it takes to expose it: since 2026-08-12 the web gateway serves
+every namespace `ctx.settings.describe()` returns and the old
+`WEB_SETTINGS_NAMESPACES` allowlist (and its `settings-not-exposed` error code)
+were deleted. The card shows its "unavailable" status card only when the browser
+cannot obtain a namespace snapshot at all — the host registered no such
+namespace, or the connection keeps preferences process-local (memory mode,
+read-only). Either way the host half still reads the resolved namespace on every
+tool call, and the tools work regardless.
 
 ## Editing discipline
 

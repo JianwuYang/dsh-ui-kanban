@@ -54,7 +54,7 @@ view.
 - **Send-to-session analysis.** From the issue detail, push an *analyze-only*
   request into the current session — or a brand-new session in the current
   workspace — through the official `ISession.prompt` /
-  `workspaces.startSession()` entry points. Image attachments ride along as
+  `uiWorkspace.startSession()` entry points. Image attachments ride along as
   image content parts (base64), so vision-capable models can actually see
   them; the instruction tells the agent to pull live data with `kanban-issue`
   and to analyze without modifying anything.
@@ -182,7 +182,7 @@ The issue detail has a **「丢进会话分析」** action. After a confirm dial
 (current session / new session in the current workspace):
 
 1. the panel sends a prompt through the official `ISession.prompt` entry point
-   (new sessions go through `workspaces.startSession()`, which creates and
+   (new sessions go through `uiWorkspace.startSession()`, which creates and
    opens a session in the current workspace);
 2. the message carries only the issue key plus an instruction to call
    `kanban-issue` for the latest details and to **analyze without modifying
